@@ -4,6 +4,7 @@ project(boii)
 
 add_library(libboii STATIC
     "src/cartridge.c"
+    "src/bus.c"
 )
 target_include_directories(libboii PRIVATE "include")
 

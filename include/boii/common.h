@@ -12,5 +12,8 @@ typedef uint64_t u64;
 #define ERR_OK 0
 #define ERR_ALLOC 1
 #define ERR_INVALID 2
+#define ERR_SEGFAULT 3
+
+#define NOT_IMPL { fprintf(stderr, "Not yet implemented\n"); exit(1); }
 
 #endif

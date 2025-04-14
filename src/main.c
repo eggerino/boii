@@ -3,18 +3,20 @@
 #include "boii/cartridge.h"
 #include "boii/common.h"
 
+
 int main(int argc, char **argv) {
+#ifndef DEBUG_FILE
     if (argc < 2) {
         fprintf(stderr, "[ERR] Usage: %s <ROM-FILEPATH>\n", argv[0]);
         return ERR_INVALID;
     }    
     const char *rom_filepath = argv[1];
+    int err = cart_init_from_file(rom_filepath);
+#else
+    int err = cart_init_from_file(DEBUG_FILE);
+#endif
 
-    Cartridge cart;
-    int err = cart_create_from_file(rom_filepath, &cart);
-    printf("rom = %p (%d)\n", cart.rom, cart.rom_size);
-    printf("ram = %p (%d)\n", cart.ram, cart.ram_size);
-    cart_free(cart);
+    cart_deinit();
     
     return err;
 }
