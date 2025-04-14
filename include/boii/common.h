@@ -10,5 +10,7 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 
 #define ERR_OK 0
+#define ERR_ALLOC 1
+#define ERR_INVALID 2
 
 #endif
