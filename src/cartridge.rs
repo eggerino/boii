@@ -1,6 +1,12 @@
+use core::result;
+use std::convert;
+use std::error;
+use std::fmt;
 use std::fs;
+use std::io;
+use std::string;
 
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
@@ -20,27 +26,53 @@ pub enum Error {
     UnknownRamSizeValue { value: u8 },
 
     // External
-    NoAsciiString(std::string::FromUtf8Error),
-    Io(std::io::Error),
+    NoAsciiString(string::FromUtf8Error),
+    Io(io::Error),
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self:?}")
     }
 }
 
-impl std::error::Error for Error {}
+impl error::Error for Error {}
+
+impl convert::From<io::Error> for Error {
+    fn from(value: io::Error) -> Self {
+        Error::Io(value)
+    }
+}
+
+impl convert::From<std::string::FromUtf8Error> for Error {
+    fn from(value: string::FromUtf8Error) -> Self {
+        Error::NoAsciiString(value)
+    }
+}
+
+pub struct ValidationSettings {
+    pub check_rom_size: bool,
+    pub check_nintento_logo: bool,
+    pub check_header_checksum: bool,
+    pub check_global_checksum: bool,
+}
+
+impl ValidationSettings {
+    pub fn default() -> Self {
+        Self {
+            check_rom_size: true,
+            check_nintento_logo: true,
+            check_header_checksum: true,
+            check_global_checksum: false,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Cartridge {
     rom: Vec<u8>,
     ram: Vec<u8>,
     header: Header,
-}
-
-pub struct ValidationSettings {
-    pub use_global_checksum: bool,
 }
 
 impl Cartridge {
@@ -56,24 +88,26 @@ impl Cartridge {
     }
 
     pub fn from_rom_file(path: &str, settings: &ValidationSettings) -> Result<Self> {
-        let rom = fs::read(path).map_err(Error::Io)?;
+        let rom = fs::read(path)?;
         Self::from_rom_data(rom, settings)
     }
 
     fn validate_rom(rom: &[u8], header: &Header, settings: &ValidationSettings) -> Result<()> {
-        if rom.len() != header.rom_size {
+        if settings.check_rom_size && rom.len() != header.rom_size {
             return Err(Error::InconsistentRomSize {
                 actual: rom.len(),
                 header: header.rom_size,
             });
         }
 
-        if rom[NINTENDO_LOGO_PTR..NINTENDO_LOGO_PTR + NINTENDO_LOGO_SIZE] != NINTENDO_LOGO {
+        if settings.check_nintento_logo
+            && rom[NINTENDO_LOGO_PTR..NINTENDO_LOGO_PTR + NINTENDO_LOGO_SIZE] != NINTENDO_LOGO
+        {
             return Err(Error::MissingNintentoLogo);
         }
 
         let header_checksum = Self::compute_header_checksum(rom);
-        if header_checksum != header.header_checksum {
+        if settings.check_header_checksum && header_checksum != header.header_checksum {
             return Err(Error::InvalidHeaderChecksum {
                 actual: header_checksum,
                 header: header.header_checksum,
@@ -81,7 +115,7 @@ impl Cartridge {
         }
 
         let global_checksum = Self::compute_global_checksum(rom);
-        if settings.use_global_checksum && global_checksum != header.global_checksum {
+        if settings.check_global_checksum && global_checksum != header.global_checksum {
             return Err(Error::InvalidGlobalChecksum {
                 actual: global_checksum,
                 header: header.global_checksum,
@@ -145,6 +179,7 @@ impl Cartridge {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Header {
     title: String,
@@ -246,12 +281,7 @@ mod tests {
 
     #[test]
     fn create_from_demo_loads_correct() {
-        let cart = Cartridge::from_rom_file(
-            "./roms/cpu_instrs.gb",
-            &ValidationSettings {
-                use_global_checksum: false,
-            },
-        );
+        let cart = Cartridge::from_rom_file("./roms/cpu_instrs.gb", &ValidationSettings::default());
 
         assert!(cart.is_ok());
     }
@@ -261,11 +291,17 @@ mod tests {
         let cart = Cartridge::from_rom_file(
             "./roms/cpu_instrs.gb",
             &ValidationSettings {
-                use_global_checksum: true,
+                check_rom_size: true,
+                check_nintento_logo: true,
+                check_header_checksum: true,
+                check_global_checksum: true,
             },
         );
 
         assert!(cart.is_err());
-        assert!(matches!(cart.unwrap_err(), Error::InvalidGlobalChecksum { .. }));
+        assert!(matches!(
+            cart.unwrap_err(),
+            Error::InvalidGlobalChecksum { .. }
+        ));
     }
 }

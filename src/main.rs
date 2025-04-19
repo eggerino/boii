@@ -16,11 +16,7 @@ fn usage(prog: &str) -> Result<()> {
 }
 
 fn run_rom(path: &str) -> Result<()> {
-    let cart = cartridge::Cartridge::from_rom_file(
-        path,
-        &cartridge::ValidationSettings {
-            use_global_checksum: false,
-        },
-    )?;
+    let cart =
+        cartridge::Cartridge::from_rom_file(path, &cartridge::ValidationSettings::default())?;
     Ok(())
 }
