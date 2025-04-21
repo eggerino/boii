@@ -54,7 +54,7 @@ public class Cartridge
         public byte Read(ushort address)
         {
             if (address >= data.Length)
-                throw new SegmentationFault($"{nameof(Cartridge)}.{nameof(ReadOnlyMemory)}", address);
+                throw SegmentationFault.Create($"{nameof(Cartridge)}.{nameof(ReadOnlyMemory)}", address);
             return data[address];
         }
     }
@@ -64,14 +64,14 @@ public class Cartridge
         public byte Read(ushort address)
         {
             if (address >= data.Length)
-                throw new SegmentationFault($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", address);
+                throw SegmentationFault.Create($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", address);
             return data[address];
         }
 
-        public void Read(ushort address, byte value)
+        public void Write(ushort address, byte value)
         {
             if (address >= data.Length)
-                throw new SegmentationFault($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", address);
+                throw SegmentationFault.Create($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", address);
             data[address] = value;
         }
     }
@@ -88,12 +88,12 @@ public class Cartridge
         var romBytes = File.ReadAllBytes(path);
 
         if (ParseHeader(romBytes) is not HeaderInfo header)
-            return(null, ["no header in rom"]);
-        
+            return (null, ["no header in rom"]);
+
         var errors = ValidateHeader(romBytes, header, settings);
         if (errors.Count > 0)
             return (null, errors);
-        
+
         var ramBytes = new byte[header.RamSize];
 
         return (new Cartridge(new ROM(romBytes), new RAM(ramBytes), header), []);
@@ -126,23 +126,23 @@ public class Cartridge
     }
 
     private static int? GetRomSize(byte value) => value switch
-        {
-            var x when 0 <= x && x <= 8 => 32 * 1024 * (1 << x),
-            0x52 => (int)(1.1 * 1024 * 1024),
-            0x53 => (int)(1.2 * 1024 * 1024),
-            0x54 => (int)(1.5 * 1024 * 1024),
-            _ => null,
-        };
+    {
+        var x when 0 <= x && x <= 8 => 32 * 1024 * (1 << x),
+        0x52 => (int)(1.1 * 1024 * 1024),
+        0x53 => (int)(1.2 * 1024 * 1024),
+        0x54 => (int)(1.5 * 1024 * 1024),
+        _ => null,
+    };
 
     private static int? GetRamSize(byte value) => value switch
-        {
-            0 => 0,
-            2 => 8 * 1024,
-            3 => 32 * 1024,
-            4 => 128 * 1024,
-            5 => 64 * 1024,
-            _ => null,
-        };
+    {
+        0 => 0,
+        2 => 8 * 1024,
+        3 => 32 * 1024,
+        4 => 128 * 1024,
+        5 => 64 * 1024,
+        _ => null,
+    };
 
     private static List<string> ValidateHeader(byte[] romBytes, HeaderInfo header, ValidationSettings settings)
     {
