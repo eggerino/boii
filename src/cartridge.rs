@@ -1,10 +1,5 @@
 use core::result;
-use std::convert;
-use std::error;
-use std::fmt;
-use std::fs;
-use std::io;
-use std::string;
+use std::{convert, error, fmt, fs, io, string};
 
 pub type Result<T> = result::Result<T, Error>;
 
