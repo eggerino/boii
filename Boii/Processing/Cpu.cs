@@ -34,12 +34,7 @@ public class Cpu
         if (Instruction.FromOpcode(opcode) is not Instruction instruction)
             throw InvalidOpcode.Create(opcode, (ushort)(_registers.ProgramCounter - 1));
 
-        _ticks += instruction switch
-        {
-            Instruction.Nop x => Nop(x),
-            Instruction.LoadImm16 x => LoadImm16(x),
-            _ => throw new NotImplementedException($"instruction {instruction} not implemented in cpu"),
-        };
+        _ticks += Execute(instruction);
     }
 
     private byte FetchByte() => _bus.Read(_registers.ProgramCounter++);
@@ -51,7 +46,32 @@ public class Cpu
         return BinaryUtil.ToUShort(high, low);
     }
 
-    private ulong Nop(Instruction.Nop inst) => 1;
+    private ulong Execute(Instruction inst) => inst switch
+        {
+            Instruction.Nop x => Nop(x),
+            Instruction.LoadImm8 x => LoadImm8(x),
+            Instruction.LoadImm16 x => LoadImm16(x),
+            Instruction.LoadFromA x => LoadFromA(x),
+            _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
+        };
+
+    private ulong Nop(Instruction.Nop _) => 1;
+
+    private ulong LoadImm8(Instruction.LoadImm8 inst)
+    {
+        var value = FetchByte();
+
+        if (inst.Destination == Instruction.Register8.B) _registers.B = value;
+        if (inst.Destination == Instruction.Register8.C) _registers.C = value;
+        if (inst.Destination == Instruction.Register8.D) _registers.D = value;
+        if (inst.Destination == Instruction.Register8.E) _registers.E = value;
+        if (inst.Destination == Instruction.Register8.H) _registers.H = value;
+        if (inst.Destination == Instruction.Register8.L) _registers.L = value;
+        if (inst.Destination == Instruction.Register8.HLAsPointer) _bus.Write(_registers.HL, value);
+        if (inst.Destination == Instruction.Register8.A) _registers.A = value;
+
+        return inst.Destination == Instruction.Register8.HLAsPointer ? 3ul : 2ul;
+    }
 
     private ulong LoadImm16(Instruction.LoadImm16 inst)
     {
@@ -63,5 +83,17 @@ public class Cpu
         if (inst.Destination == Instruction.Register16.StackPointer) _registers.StackPointer = value;
 
         return 3;
+    }
+
+    private ulong LoadFromA(Instruction.LoadFromA inst)
+    {
+        var value = _registers.A;
+
+        if (inst.Destination == Instruction.Register16Memory.BC) _bus.Write(_registers.BC, value);
+        if (inst.Destination == Instruction.Register16Memory.DE) _bus.Write(_registers.DE, value);
+        if (inst.Destination == Instruction.Register16Memory.HLInc) _bus.Write(_registers.HL++, value);
+        if (inst.Destination == Instruction.Register16Memory.HLDec) _bus.Write(_registers.HL--, value);
+
+        return 2;
     }
 }
