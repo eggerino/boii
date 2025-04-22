@@ -17,6 +17,8 @@ public class Cpu
 
     public static Cpu Create(IGenericIO bus) => new(bus);
 
+    public ulong Ticks => _ticks;
+
     public RegisterDump GetRegisterDump() => new(
         AF: _registers.AF,
         BC: _registers.BC,
@@ -34,7 +36,8 @@ public class Cpu
 
         _ticks += instruction switch
         {
-            Instruction.Nop nop => Nop(nop),
+            Instruction.Nop x => Nop(x),
+            Instruction.LoadImm16 x => LoadImm16(x),
             _ => throw new NotImplementedException($"instruction {instruction} not implemented in cpu"),
         };
     }
@@ -49,4 +52,16 @@ public class Cpu
     }
 
     private ulong Nop(Instruction.Nop inst) => 1;
+
+    private ulong LoadImm16(Instruction.LoadImm16 inst)
+    {
+        var value = FetchUShort();
+
+        if (inst.Destination == Instruction.Register16.BC) _registers.BC = value;
+        if (inst.Destination == Instruction.Register16.DE) _registers.DE = value;
+        if (inst.Destination == Instruction.Register16.HL) _registers.HL = value;
+        if (inst.Destination == Instruction.Register16.StackPointer) _registers.StackPointer = value;
+
+        return 3;
+    }
 }

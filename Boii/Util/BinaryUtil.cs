@@ -17,4 +17,10 @@ public static class BinaryUtil
     };
 
     public static byte SetBit(byte source, int index, bool value) => (byte)SetBit((ushort)source, index, value);
+
+    public static byte Slice(byte source, int index, int length)
+    {
+        var mask = ~(~0 << length);
+        return (byte)((source >> index) & mask);
+    }
 }
