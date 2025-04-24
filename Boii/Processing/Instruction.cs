@@ -11,12 +11,15 @@ public abstract record Instruction
     public enum Condition { NotZero = 0, Zero, NotCarry, Carry }
 
     public sealed record Nop : Instruction;
-    
+
     public sealed record LoadImm8(Register8 Destination) : Instruction;
     public sealed record LoadImm16(Register16 Destination) : Instruction;
     public sealed record LoadFromA(Register16Memory Destination) : Instruction;
     public sealed record LoadIntoA(Register16Memory Source) : Instruction;
     public sealed record LoadFromStackPointer : Instruction;
+
+    public sealed record IncrementRegister16(Register16 Operand) : Instruction;
+    public sealed record DecrementRegister16(Register16 Operand) : Instruction;
 
     public static Instruction? FromOpcode(byte opcode) => opcode switch
     {
@@ -27,6 +30,9 @@ public abstract record Instruction
         var x when (x & 0b1100_1111) == 0b0000_0010 => new LoadFromA(ToRegister16Memory(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1010 => new LoadIntoA(ToRegister16Memory(x, 4)),
         0b0000_1000 => new LoadFromStackPointer(),
+
+        var x when (x & 0b1100_1111) == 0b0000_0011 => new IncrementRegister16(ToRegister16(x, 4)),
+        var x when (x & 0b1100_1111) == 0b0000_1011 => new DecrementRegister16(ToRegister16(x, 4)),
 
         _ => null,
     };

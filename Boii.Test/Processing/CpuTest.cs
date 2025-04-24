@@ -94,7 +94,7 @@ public class CpuTest
 
         var cpu = Cpu.Create(bus);
 
-        Step(cpu, 4);;
+        Step(cpu, 4); ;
         AssertCpu(11, new(0x0100, 0x0001, 0x0002, 0x0003, 0, 0x010A), cpu);
         cpu.Step();
         AssertCpu(13, new(0x0200, 0x0001, 0x0002, 0x0003, 0, 0x010B), cpu);
@@ -118,6 +118,38 @@ public class CpuTest
         AssertCpu(8, new(0, 0, 0, 0, 0x0807, 0x0106), cpu);
         Assert.Equal(0x07, bus.Read(1));
         Assert.Equal(0x08, bus.Read(2));
+    }
+
+    [Fact]
+    public void IncrementRegister16()
+    {
+        var bus = Bus.From([
+            0b0000_0011,                // inc bc
+            0b0001_0011,                // inc de
+            0b0010_0011,                // inc hl
+            0b0011_0011,                // inc sp
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 4);
+
+        AssertCpu(8, new(0, 1, 1, 1, 1, 0x0104), cpu);
+    }
+
+    [Fact]
+    public void DecrementRegister16()
+    {
+        var bus = Bus.From([
+            0b0000_1011,                // dec bc
+            0b0001_1011,                // dec de
+            0b0010_1011,                // dec hl
+            0b0011_1011,                // dec sp
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 4);
+
+        AssertCpu(8, new(0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0x0104), cpu);
     }
 
     private static void Step(Cpu cpu, int amount)

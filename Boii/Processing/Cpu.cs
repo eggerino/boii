@@ -47,17 +47,20 @@ public class Cpu
     }
 
     private ulong Execute(Instruction inst) => inst switch
-        {
-            Instruction.Nop x => Nop(x),
+    {
+        Instruction.Nop x => Nop(x),
 
-            Instruction.LoadImm8 x => LoadImm8(x),
-            Instruction.LoadImm16 x => LoadImm16(x),
-            Instruction.LoadFromA x => LoadFromA(x),
-            Instruction.LoadIntoA x => LoadIntoA(x),
-            Instruction.LoadFromStackPointer x => LoadFromStackPointer(x),
+        Instruction.LoadImm8 x => LoadImm8(x),
+        Instruction.LoadImm16 x => LoadImm16(x),
+        Instruction.LoadFromA x => LoadFromA(x),
+        Instruction.LoadIntoA x => LoadIntoA(x),
+        Instruction.LoadFromStackPointer x => LoadFromStackPointer(x),
 
-            _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
-        };
+        Instruction.IncrementRegister16 x => IncrementRegister16(x),
+        Instruction.DecrementRegister16 x => DecrementRegister16(x),
+
+        _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
+    };
 
     private ulong Nop(Instruction.Nop _) => 1;
 
@@ -119,5 +122,25 @@ public class Cpu
         _bus.Write(destination, (byte)(_registers.StackPointer >> 8));
 
         return 5;
+    }
+
+    private ulong IncrementRegister16(Instruction.IncrementRegister16 inst)
+    {
+        if (inst.Operand == Instruction.Register16.BC) _registers.BC++;
+        if (inst.Operand == Instruction.Register16.DE) _registers.DE++;
+        if (inst.Operand == Instruction.Register16.HL) _registers.HL++;
+        if (inst.Operand == Instruction.Register16.StackPointer) _registers.StackPointer++;
+
+        return 2;
+    }
+
+    private ulong DecrementRegister16(Instruction.DecrementRegister16 inst)
+    {
+        if (inst.Operand == Instruction.Register16.BC) _registers.BC--;
+        if (inst.Operand == Instruction.Register16.DE) _registers.DE--;
+        if (inst.Operand == Instruction.Register16.HL) _registers.HL--;
+        if (inst.Operand == Instruction.Register16.StackPointer) _registers.StackPointer--;
+
+        return 2;
     }
 }
