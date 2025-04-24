@@ -104,6 +104,22 @@ public class CpuTest
         AssertCpu(17, new(0x0400, 0x0001, 0x0002, 0x0003, 0, 0x010D), cpu);
     }
 
+    [Fact]
+    public void LoadFromStackPointer()
+    {
+        var bus = Bus.From([
+            0b0011_0001, 0x07, 0x08,    // ld sp, 0x0807
+            0b0000_1000, 0x01, 0x00     // ld [0x0001], sp
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 2);
+
+        AssertCpu(8, new(0, 0, 0, 0, 0x0807, 0x0106), cpu);
+        Assert.Equal(0x07, bus.Read(1));
+        Assert.Equal(0x08, bus.Read(2));
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))

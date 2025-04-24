@@ -49,10 +49,13 @@ public class Cpu
     private ulong Execute(Instruction inst) => inst switch
         {
             Instruction.Nop x => Nop(x),
+
             Instruction.LoadImm8 x => LoadImm8(x),
             Instruction.LoadImm16 x => LoadImm16(x),
             Instruction.LoadFromA x => LoadFromA(x),
             Instruction.LoadIntoA x => LoadIntoA(x),
+            Instruction.LoadFromStackPointer x => LoadFromStackPointer(x),
+
             _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
         };
 
@@ -106,5 +109,15 @@ public class Cpu
         if (inst.Source == Instruction.Register16Memory.HLDec) _registers.A = _bus.Read(_registers.HL--);
 
         return 2;
+    }
+
+    private ulong LoadFromStackPointer(Instruction.LoadFromStackPointer _)
+    {
+        var destination = FetchUShort();
+
+        _bus.Write(destination++, (byte)_registers.StackPointer);
+        _bus.Write(destination, (byte)(_registers.StackPointer >> 8));
+
+        return 5;
     }
 }
