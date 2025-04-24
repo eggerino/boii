@@ -20,6 +20,7 @@ public abstract record Instruction
 
     public sealed record IncrementRegister16(Register16 Operand) : Instruction;
     public sealed record DecrementRegister16(Register16 Operand) : Instruction;
+    public sealed record AddRegister16ToHL(Register16 Operand) : Instruction;
 
     public static Instruction? FromOpcode(byte opcode) => opcode switch
     {
@@ -33,6 +34,7 @@ public abstract record Instruction
 
         var x when (x & 0b1100_1111) == 0b0000_0011 => new IncrementRegister16(ToRegister16(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1011 => new DecrementRegister16(ToRegister16(x, 4)),
+        var x when (x & 0b1100_1111) == 0b0000_1001 => new AddRegister16ToHL(ToRegister16(x, 4)),
 
         _ => null,
     };

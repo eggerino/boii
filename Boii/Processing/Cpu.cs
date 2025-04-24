@@ -58,6 +58,7 @@ public class Cpu
 
         Instruction.IncrementRegister16 x => IncrementRegister16(x),
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
+        Instruction.AddRegister16ToHL x => AddRegister16ToHL(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -140,6 +141,26 @@ public class Cpu
         if (inst.Operand == Instruction.Register16.DE) _registers.DE--;
         if (inst.Operand == Instruction.Register16.HL) _registers.HL--;
         if (inst.Operand == Instruction.Register16.StackPointer) _registers.StackPointer--;
+
+        return 2;
+    }
+
+    private ulong AddRegister16ToHL(Instruction.AddRegister16ToHL inst)
+    {
+        int oldValue = _registers.HL;
+        int newValue = oldValue + inst.Operand switch
+        {
+            Instruction.Register16.BC => _registers.BC,
+            Instruction.Register16.DE => _registers.DE,
+            Instruction.Register16.HL => _registers.HL,
+            Instruction.Register16.StackPointer => _registers.StackPointer,
+            _ => 0,
+        };
+
+        _registers.Subtraction = false;
+        _registers.HalfCarry = oldValue <= 0x0FFF && 0x0FFF < newValue;
+        _registers.Carry = oldValue <= 0xFFFF && 0xFFFF < newValue;
+        _registers.HL = (ushort)newValue;
 
         return 2;
     }

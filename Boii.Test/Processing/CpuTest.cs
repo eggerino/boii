@@ -152,6 +152,30 @@ public class CpuTest
         AssertCpu(8, new(0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0x0104), cpu);
     }
 
+    [Fact]
+    public void AddRegister16ToHL()
+    {
+        var bus = Bus.From([
+            0b0000_0001, 0xFF, 0x0F,    // ld bc, 0x0FFF
+            0b0001_0001, 0x01, 0x00,    // ld de, 0x0001
+            0b0011_0001, 0x01, 0xE0,    // ld sp, 0xE001
+            0b0000_1001,                // dec bc
+            0b0001_1001,                // dec de
+            0b0010_1001,                // dec hl
+            0b0011_1001,                // dec sp
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 4);
+        AssertCpu(11, new(0b0000_0000_0000_0000, 0x0FFF, 0x0001, 0x0FFF, 0xE001, 0x010A), cpu);
+        cpu.Step();
+        AssertCpu(13, new(0b0000_0000_0010_0000, 0x0FFF, 0x0001, 0x1000, 0xE001, 0x010B), cpu);
+        cpu.Step();
+        AssertCpu(15, new(0b0000_0000_0000_0000, 0x0FFF, 0x0001, 0x2000, 0xE001, 0x010C), cpu);
+        cpu.Step();
+        AssertCpu(17, new(0b0000_0000_0001_0000, 0x0FFF, 0x0001, 0x0001, 0xE001, 0x010D), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
