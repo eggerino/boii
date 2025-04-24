@@ -52,6 +52,7 @@ public class Cpu
             Instruction.LoadImm8 x => LoadImm8(x),
             Instruction.LoadImm16 x => LoadImm16(x),
             Instruction.LoadFromA x => LoadFromA(x),
+            Instruction.LoadIntoA x => LoadIntoA(x),
             _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
         };
 
@@ -93,6 +94,16 @@ public class Cpu
         if (inst.Destination == Instruction.Register16Memory.DE) _bus.Write(_registers.DE, value);
         if (inst.Destination == Instruction.Register16Memory.HLInc) _bus.Write(_registers.HL++, value);
         if (inst.Destination == Instruction.Register16Memory.HLDec) _bus.Write(_registers.HL--, value);
+
+        return 2;
+    }
+
+    private ulong LoadIntoA(Instruction.LoadIntoA inst)
+    {
+        if (inst.Source == Instruction.Register16Memory.BC) _registers.A = _bus.Read(_registers.BC);
+        if (inst.Source == Instruction.Register16Memory.DE) _registers.A = _bus.Read(_registers.DE);
+        if (inst.Source == Instruction.Register16Memory.HLInc) _registers.A = _bus.Read(_registers.HL++);
+        if (inst.Source == Instruction.Register16Memory.HLDec) _registers.A = _bus.Read(_registers.HL--);
 
         return 2;
     }

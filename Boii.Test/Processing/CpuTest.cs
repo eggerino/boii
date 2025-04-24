@@ -75,6 +75,35 @@ public class CpuTest
         Assert.Equal(0xFF, bus.Read(0x0001));
     }
 
+    [Fact]
+    public void LoadIntoA()
+    {
+        var bus = Bus.From([
+            0b0000_0001, 0x01, 0x00,    // ld bc, 1
+            0b0001_0001, 0x02, 0x00,    // ld de, 2
+            0b0010_0001, 0x03, 0x00,    // ld hl, 3
+            0b0000_1010,                // ld a, [bc]
+            0b0001_1010,                // ld a, [de]
+            0b0010_1010,                // ld a, [hl+]
+            0b0011_1010,                // ld a, [hl-]
+        ]);
+        bus.Write(1, 1);
+        bus.Write(2, 2);
+        bus.Write(3, 3);
+        bus.Write(4, 4);
+
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 4);;
+        AssertCpu(11, new(0x0100, 0x0001, 0x0002, 0x0003, 0, 0x010A), cpu);
+        cpu.Step();
+        AssertCpu(13, new(0x0200, 0x0001, 0x0002, 0x0003, 0, 0x010B), cpu);
+        cpu.Step();
+        AssertCpu(15, new(0x0300, 0x0001, 0x0002, 0x0004, 0, 0x010C), cpu);
+        cpu.Step();
+        AssertCpu(17, new(0x0400, 0x0001, 0x0002, 0x0003, 0, 0x010D), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
