@@ -171,9 +171,54 @@ public class CpuTest
         cpu.Step();
         AssertCpu(13, new(0b0000_0000_0010_0000, 0x0FFF, 0x0001, 0x1000, 0xE001, 0x010B), cpu);
         cpu.Step();
-        AssertCpu(15, new(0b0000_0000_0000_0000, 0x0FFF, 0x0001, 0x2000, 0xE001, 0x010C), cpu);
+        AssertCpu(15, new(0b0000_0000_0010_0000, 0x0FFF, 0x0001, 0x2000, 0xE001, 0x010C), cpu);
         cpu.Step();
-        AssertCpu(17, new(0b0000_0000_0001_0000, 0x0FFF, 0x0001, 0x0001, 0xE001, 0x010D), cpu);
+        AssertCpu(17, new(0b0000_0000_0011_0000, 0x0FFF, 0x0001, 0x0001, 0xE001, 0x010D), cpu);
+    }
+
+    [Fact]
+    public void IncrementRegister8()
+    {
+        var bus = Bus.From([
+            0b0000_0110, 0xFF,  // ld b, 255
+            0b0000_1110, 0x0F,  // ld c, 16
+            0b0000_0100,        // inc b
+            0b0000_1100,        // inc c
+            0b0001_0100,        // inc d
+            0b0001_1100,        // inc e
+            0b0011_0100,        // inc [hl]
+            0b0010_0100,        // inc h
+            0b0010_1100,        // inc l
+            0b0011_1100,        // inc a
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 10);
+
+        AssertCpu(14, new(0x0100 | 0b1010_0000, 0x0010, 0x0101, 0x0101, 0x0000, 0x010C), cpu);
+        Assert.Equal(0x01, bus.Read(0x0000));
+    }
+
+    [Fact]
+    public void DecrementRegister8()
+    {
+        var bus = Bus.From([
+            0b0000_0110, 0x01,  // ld b, 1
+            0b0000_0101,        // dec b
+            0b0000_1101,        // dec c
+            0b0001_0101,        // dec d
+            0b0001_1101,        // dec e
+            0b0011_0101,        // dec [hl]
+            0b0010_0101,        // dec h
+            0b0010_1101,        // dec l
+            0b0011_1101,        // dec a
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 9);
+
+        AssertCpu(12, new(0xFF00 | 0b1110_0000, 0x00FF, 0xFFFF, 0xFFFF, 0x0000, 0x010A), cpu);
+        Assert.Equal(0xFF, bus.Read(0x0000));
     }
 
     private static void Step(Cpu cpu, int amount)

@@ -18,6 +18,9 @@ public abstract record Instruction
     public sealed record LoadIntoA(Register16Memory Source) : Instruction;
     public sealed record LoadFromStackPointer : Instruction;
 
+    public sealed record IncrementRegister8(Register8 Operand) : Instruction;
+    public sealed record DecrementRegister8(Register8 Operand) : Instruction;
+
     public sealed record IncrementRegister16(Register16 Operand) : Instruction;
     public sealed record DecrementRegister16(Register16 Operand) : Instruction;
     public sealed record AddRegister16ToHL(Register16 Operand) : Instruction;
@@ -31,6 +34,9 @@ public abstract record Instruction
         var x when (x & 0b1100_1111) == 0b0000_0010 => new LoadFromA(ToRegister16Memory(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1010 => new LoadIntoA(ToRegister16Memory(x, 4)),
         0b0000_1000 => new LoadFromStackPointer(),
+
+        var x when (x & 0b1100_0111) == 0b0000_0100 => new IncrementRegister8(ToRegister8(x, 3)),
+        var x when (x & 0b1100_0111) == 0b0000_0101 => new DecrementRegister8(ToRegister8(x, 3)),
 
         var x when (x & 0b1100_1111) == 0b0000_0011 => new IncrementRegister16(ToRegister16(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1011 => new DecrementRegister16(ToRegister16(x, 4)),

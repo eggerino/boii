@@ -1,4 +1,5 @@
 using System;
+using System.Security.Cryptography.X509Certificates;
 using Boii.Abstractions;
 using Boii.Errors;
 using Boii.Util;
@@ -55,6 +56,9 @@ public class Cpu
         Instruction.LoadFromA x => LoadFromA(x),
         Instruction.LoadIntoA x => LoadIntoA(x),
         Instruction.LoadFromStackPointer x => LoadFromStackPointer(x),
+
+        Instruction.IncrementRegister8 x => IncrementRegister8(x),
+        Instruction.DecrementRegister8 x => DecrementRegister8(x),
 
         Instruction.IncrementRegister16 x => IncrementRegister16(x),
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
@@ -125,6 +129,60 @@ public class Cpu
         return 5;
     }
 
+    private ulong IncrementRegister8(Instruction.IncrementRegister8 inst)
+    {
+        byte newValue = inst.Operand switch
+        {
+            Instruction.Register8.B => ++_registers.B,
+            Instruction.Register8.C => ++_registers.C,
+            Instruction.Register8.D => ++_registers.D,
+            Instruction.Register8.E => ++_registers.E,
+            Instruction.Register8.H => ++_registers.H,
+            Instruction.Register8.L => ++_registers.L,
+            Instruction.Register8.A => ++_registers.A,
+            _ => 0,
+        };
+
+        if (inst.Operand ==  Instruction.Register8.HLAsPointer)
+        {
+            newValue = (byte)(_bus.Read(_registers.HL) + 1);
+            _bus.Write(_registers.HL, newValue);
+        }
+
+        if (newValue == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        if (newValue == 0x10) _registers.HalfCarry = true;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 3ul : 1ul;
+    }
+
+    private ulong DecrementRegister8(Instruction.DecrementRegister8 inst)
+    {
+        byte oldValue = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B--,
+            Instruction.Register8.C => _registers.C--,
+            Instruction.Register8.D => _registers.D--,
+            Instruction.Register8.E => _registers.E--,
+            Instruction.Register8.H => _registers.H--,
+            Instruction.Register8.L => _registers.L--,
+            Instruction.Register8.A => _registers.A--,
+            _ => 0,
+        };
+
+        if (inst.Operand ==  Instruction.Register8.HLAsPointer)
+        {
+            oldValue = _bus.Read(_registers.HL);
+            _bus.Write(_registers.HL, (byte)(oldValue - 1));
+        }
+
+        if (oldValue == 1) _registers.Zero = true;
+        _registers.Subtraction = true;
+        if ((oldValue & 0b0000_1111) == 0) _registers.HalfCarry = true;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 3ul : 1ul;
+    }
+
     private ulong IncrementRegister16(Instruction.IncrementRegister16 inst)
     {
         if (inst.Operand == Instruction.Register16.BC) _registers.BC++;
@@ -158,8 +216,8 @@ public class Cpu
         };
 
         _registers.Subtraction = false;
-        _registers.HalfCarry = oldValue <= 0x0FFF && 0x0FFF < newValue;
-        _registers.Carry = oldValue <= 0xFFFF && 0xFFFF < newValue;
+        if (oldValue <= 0x0FFF && 0x0FFF < newValue) _registers.HalfCarry = true;
+        if (oldValue <= 0xFFFF && 0xFFFF < newValue) _registers.Carry = true;
         _registers.HL = (ushort)newValue;
 
         return 2;
