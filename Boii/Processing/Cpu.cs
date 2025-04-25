@@ -88,6 +88,9 @@ public class Cpu
         Instruction.SetCarryFlag x => SetCarryFlag(x),
         Instruction.ComplementCarryFlag x => ComplementCarryFlag(x),
 
+        Instruction.JumpRelative x => JumpRelative(x),
+        Instruction.ConditionalJumpRelative x => ConditionalJumpRelative(x),
+
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
 
@@ -364,5 +367,34 @@ public class Cpu
         _registers.Carry = !_registers.Carry;
 
         return 1;
+    }
+
+    private ulong JumpRelative(Instruction.JumpRelative _)
+    {
+        var offset = (sbyte)FetchByte();
+        _registers.ProgramCounter = (ushort)(_registers.ProgramCounter + offset);
+
+        return 3;
+    }
+
+    private ulong ConditionalJumpRelative(Instruction.ConditionalJumpRelative inst)
+    {
+        var condition = inst.Condition switch
+        {
+            Instruction.JumpCondition.NotZero => !_registers.Zero,
+            Instruction.JumpCondition.Zero => _registers.Zero,
+            Instruction.JumpCondition.NotCarry => !_registers.Carry,
+            Instruction.JumpCondition.Carry => _registers.Carry,
+            _ => false,
+        };
+
+        var offset = (sbyte)FetchByte();
+
+        if (condition)
+        {
+            _registers.ProgramCounter = (ushort)(_registers.ProgramCounter + offset);
+        }
+
+        return condition ? 3ul : 2;
     }
 }

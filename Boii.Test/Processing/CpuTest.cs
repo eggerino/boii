@@ -302,6 +302,43 @@ public class CpuTest
         AssertCpu(1, new(0x0000 | 0b0000_0000, 0, 0, 0, 0, 0x0101), cpu);
     }
 
+    [Fact]
+    public void JumpRelative()
+    {
+        var bus = Bus.From([
+            0b0001_1000, 0x01,  // jr 1
+            0x00,               // nop
+            0b0001_1000, 0xFF   // jr -1
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 2);
+
+        AssertCpu(6, new(0, 0, 0, 0, 0, 0x0104), cpu);
+    }
+
+    [Theory]
+    [InlineData(0b1000_0000, 0b0010_0000, 1, 2, 0x0102)]        // jr nz, 1
+    [InlineData(0b0000_0000, 0b0010_0000, 1, 3, 0x0103)]        // jr nz, 1
+    [InlineData(0b0000_0000, 0b0010_0000, 0xFF, 3, 0x0101)]     // jr nz, -1
+    [InlineData(0b0000_0000, 0b0010_1000, 1, 2, 0x0102)]        // jr z, 1
+    [InlineData(0b1000_0000, 0b0010_1000, 1, 3, 0x0103)]        // jr z, 1
+    [InlineData(0b0001_0000, 0b0011_0000, 1, 2, 0x0102)]        // jr nc, 1
+    [InlineData(0b0000_0000, 0b0011_0000, 1, 3, 0x0103)]        // jr nc, 1
+    [InlineData(0b0000_0000, 0b0011_1000, 1, 2, 0x0102)]        // jr c, 1
+    [InlineData(0b0001_0000, 0b0011_1000, 1, 3, 0x0103)]        // jr c, 1
+    public void ConditionalJumpRelative(byte flags, byte opcode, byte address, ulong expectedTicks, ushort expectedProgramCounter)
+    {
+        var bus = Bus.From([
+            opcode, address
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(flags, 0, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(expectedTicks, new(flags, 0, 0, 0, 0, expectedProgramCounter), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))

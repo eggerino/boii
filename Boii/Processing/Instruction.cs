@@ -8,7 +8,7 @@ public abstract record Instruction
     public enum Register16 { BC = 0, DE, HL, StackPointer }
     public enum Register16Stack { BC = 0, DE, HL, AF }
     public enum Register16Memory { BC = 0, DE, HLInc, HLDec }
-    public enum Condition { NotZero = 0, Zero, NotCarry, Carry }
+    public enum JumpCondition { NotZero = 0, Zero, NotCarry, Carry }
 
     public sealed record Nop : Instruction;
 
@@ -35,6 +35,9 @@ public abstract record Instruction
 
     public sealed record SetCarryFlag : Instruction;
     public sealed record ComplementCarryFlag : Instruction;
+
+    public sealed record JumpRelative : Instruction;
+    public sealed record ConditionalJumpRelative(JumpCondition Condition) : Instruction;
 
     public static Instruction? FromOpcode(byte opcode) => opcode switch
     {
@@ -64,6 +67,9 @@ public abstract record Instruction
         0b0011_0111 => new SetCarryFlag(),
         0b0011_1111 => new ComplementCarryFlag(),
 
+        0b0001_1000 => new JumpRelative(),
+        var x when (x & 0b1110_0111) == 0b0010_0000 => new ConditionalJumpRelative(ToCondition(x, 3)),
+
         _ => null,
     };
 
@@ -71,5 +77,5 @@ public abstract record Instruction
     private static Register16 ToRegister16(byte opcode, int offset) => (Register16)BinaryUtil.Slice(opcode, offset, 2);
     private static Register16Stack ToRegister16Stack(byte opcode, int offset) => (Register16Stack)BinaryUtil.Slice(opcode, offset, 2);
     private static Register16Memory ToRegister16Memory(byte opcode, int offset) => (Register16Memory)BinaryUtil.Slice(opcode, offset, 2);
-    private static Condition ToCondition(byte opcode, int offset) => (Condition)BinaryUtil.Slice(opcode, offset, 2);
+    private static JumpCondition ToCondition(byte opcode, int offset) => (JumpCondition)BinaryUtil.Slice(opcode, offset, 2);
 }
