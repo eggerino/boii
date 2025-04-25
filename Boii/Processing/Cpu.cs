@@ -63,8 +63,11 @@ public class Cpu
     private ulong Execute(Instruction inst) => inst switch
     {
         Instruction.Nop x => Nop(x),
+        Instruction.Stop x => Stop(x),
+        Instruction.Halt x => Halt(x),
 
         Instruction.LoadImm8 x => LoadImm8(x),
+        Instruction.LoadRegister8ToRegister8 x => LoadRegister8ToRegister8(x),
         Instruction.LoadImm16 x => LoadImm16(x),
         Instruction.LoadFromA x => LoadFromA(x),
         Instruction.LoadIntoA x => LoadIntoA(x),
@@ -96,6 +99,16 @@ public class Cpu
 
     private ulong Nop(Instruction.Nop _) => 1;
 
+    private ulong Stop(Instruction.Stop _)
+    {
+        throw new NotImplementedException("Stop is currently not supported");
+    }
+
+    private ulong Halt(Instruction.Halt _)
+    {
+        throw new NotImplementedException("Halt is currently not supported");
+    }
+
     private ulong LoadImm8(Instruction.LoadImm8 inst)
     {
         var value = FetchByte();
@@ -110,6 +123,33 @@ public class Cpu
         if (inst.Destination == Instruction.Register8.A) _registers.A = value;
 
         return inst.Destination == Instruction.Register8.HLAsPointer ? 3ul : 2ul;
+    }
+
+    private ulong LoadRegister8ToRegister8(Instruction.LoadRegister8ToRegister8 inst)
+    {
+        byte value = inst.Source switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+
+        if (inst.Destination == Instruction.Register8.B) _registers.B = value;
+        if (inst.Destination == Instruction.Register8.C) _registers.C = value;
+        if (inst.Destination == Instruction.Register8.D) _registers.D = value;
+        if (inst.Destination == Instruction.Register8.E) _registers.E = value;
+        if (inst.Destination == Instruction.Register8.H) _registers.H = value;
+        if (inst.Destination == Instruction.Register8.L) _registers.L = value;
+        if (inst.Destination == Instruction.Register8.HLAsPointer) _bus.Write(_registers.HL, value);
+        if (inst.Destination == Instruction.Register8.A) _registers.A = value;
+
+        return (inst.Source == Instruction.Register8.HLAsPointer || inst.Destination == Instruction.Register8.HLAsPointer) ? 2ul : 1;
     }
 
     private ulong LoadImm16(Instruction.LoadImm16 inst)

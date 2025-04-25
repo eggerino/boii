@@ -339,6 +339,71 @@ public class CpuTest
         AssertCpu(expectedTicks, new(flags, 0, 0, 0, 0, expectedProgramCounter), cpu);
     }
 
+    [Fact]
+    public void LoadRegister8ToRegister8_FromB()
+    {
+        var bus = Bus.From([
+            0b0111_0000,        // ld [hl], b
+            0b0100_0000,        // ld b, b
+            0b0100_1000,        // ld c, b
+            0b0101_0000,        // ld d, b
+            0b0101_1000,        // ld e, b
+            0b0110_0000,        // ld h, b
+            0b0110_1000,        // ld l, b
+            0b0111_1000,        // ld a, b
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0x0100, 0, 0, 0, 0x0100));
+
+        Step(cpu, 8);
+
+        AssertCpu(9, new(0x0100, 0x0101, 0x0101, 0x0101, 0, 0x0108), cpu);
+        Assert.Equal(1, bus.Read(0));
+    }
+
+    [Fact]
+    public void LoadRegister8ToRegister8_IntoB()
+    {
+        var bus = Bus.From([
+            // 0b0100_0110,        // ld b, [hl]
+            0b0100_0000,        // ld b, b
+            0b0100_0001,        // ld b, c
+            0b0100_0010,        // ld b, d
+            0b0100_0011,        // ld b, e
+            0b0100_0100,        // ld b, h
+            0b0100_0101,        // ld b, l
+            0b0100_0111,        // ld b, a
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0600, 0x001, 0x0203, 0x0405, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(1, new(0x0600, 0x0001, 0x0203, 0x0405, 0, 0x0101), cpu);
+        cpu.Step();
+        AssertCpu(2, new(0x0600, 0x0101, 0x0203, 0x0405, 0, 0x0102), cpu);
+        cpu.Step();
+        AssertCpu(3, new(0x0600, 0x0201, 0x0203, 0x0405, 0, 0x0103), cpu);
+        cpu.Step();
+        AssertCpu(4, new(0x0600, 0x0301, 0x0203, 0x0405, 0, 0x0104), cpu);
+        cpu.Step();
+        AssertCpu(5, new(0x0600, 0x0401, 0x0203, 0x0405, 0, 0x0105), cpu);
+        cpu.Step();
+        AssertCpu(6, new(0x0600, 0x0501, 0x0203, 0x0405, 0, 0x0106), cpu);
+        cpu.Step();
+        AssertCpu(7, new(0x0600, 0x0601, 0x0203, 0x0405, 0, 0x0107), cpu);
+    }
+
+    [Fact]
+    public void LoadRegister8ToRegister8_HLPointerIntoB()
+    {
+        var bus = Bus.From([
+            0b0100_0110         // ld b, [hl]
+        ]);
+        bus.Write(0, 1);
+        var cpu = Cpu.Create(bus);
+
+        cpu.Step();
+        AssertCpu(2, new(0, 0x0100, 0, 0, 0, 0x0101), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
