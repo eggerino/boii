@@ -30,6 +30,12 @@ public abstract record Instruction
     public sealed record RotateLeftCarryA : Instruction;
     public sealed record RotateRightCarryA : Instruction;
 
+    public sealed record DecimalAdjustAccumulator : Instruction;
+    public sealed record ComplementAccumulator : Instruction;
+
+    public sealed record SetCarryFlag : Instruction;
+    public sealed record ComplementCarryFlag : Instruction;
+
     public static Instruction? FromOpcode(byte opcode) => opcode switch
     {
         0x00 => new Nop(),
@@ -51,6 +57,12 @@ public abstract record Instruction
         0b0000_1111 => new RotateRightA(),
         0b0001_0111 => new RotateLeftCarryA(),
         0b0001_1111 => new RotateRightCarryA(),
+
+        0b0010_0111 => new DecimalAdjustAccumulator(),
+        0b0010_1111 => new ComplementAccumulator(),
+
+        0b0011_0111 => new SetCarryFlag(),
+        0b0011_1111 => new ComplementCarryFlag(),
 
         _ => null,
     };

@@ -1,5 +1,4 @@
 using System;
-using System.Security.Cryptography.X509Certificates;
 using Boii.Abstractions;
 using Boii.Errors;
 using Boii.Util;
@@ -17,6 +16,20 @@ public class Cpu
     private Cpu(IGenericIO bus) => _bus = bus;
 
     public static Cpu Create(IGenericIO bus) => new(bus);
+
+    public static Cpu CreateWithRegisterState(IGenericIO bus, RegisterDump registerDump)
+    {
+        var cpu = new Cpu(bus);
+
+        cpu._registers.AF = registerDump.AF;
+        cpu._registers.BC = registerDump.BC;
+        cpu._registers.DE = registerDump.DE;
+        cpu._registers.HL = registerDump.HL;
+        cpu._registers.StackPointer = registerDump.StackPointer;
+        cpu._registers.ProgramCounter = registerDump.ProgramCounter;
+
+        return cpu;
+    }
 
     public ulong Ticks => _ticks;
 
@@ -68,6 +81,12 @@ public class Cpu
         Instruction.RotateRightA x => RotateRightA(x),
         Instruction.RotateLeftCarryA x => RotateLeftCarryA(x),
         Instruction.RotateRightCarryA x => RotateRightCarryA(x),
+
+        Instruction.DecimalAdjustAccumulator x => DecimalAdjustAccumulator(x),
+        Instruction.ComplementAccumulator x => ComplementAccumulator(x),
+
+        Instruction.SetCarryFlag x => SetCarryFlag(x),
+        Instruction.ComplementCarryFlag x => ComplementCarryFlag(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -292,4 +311,58 @@ public class Cpu
         return 1;
     }
 
+    private ulong DecimalAdjustAccumulator(Instruction.DecimalAdjustAccumulator _)
+    {
+        var a = _registers.A;
+        var carry = false;
+
+        if (_registers.Subtraction)
+        {
+            if (_registers.HalfCarry) a -= 0x06;
+            if (_registers.Carry) a -= 0x60;
+        }
+        else
+        {
+            if (_registers.HalfCarry || (a & 0x0F) > 0x09) a += 0x06;
+            if (_registers.Carry || a > 0x99)
+            {
+                a += 0x60;
+                carry = true;
+            }
+        }
+
+        _registers.A = a;
+        if (a == 0) _registers.Zero = true;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return 1;
+    }
+
+    private ulong ComplementAccumulator(Instruction.ComplementAccumulator _)
+    {
+        _registers.A = (byte)~_registers.A;
+        _registers.Subtraction = true;
+        _registers.HalfCarry = true;
+
+        return 1;
+    }
+
+    private ulong SetCarryFlag(Instruction.SetCarryFlag _)
+    {
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = true;
+
+        return 1;
+    }
+
+    private ulong ComplementCarryFlag(Instruction.ComplementCarryFlag _)
+    {
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = !_registers.Carry;
+
+        return 1;
+    }
 }
