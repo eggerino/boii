@@ -64,6 +64,11 @@ public class Cpu
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
         Instruction.AddRegister16ToHL x => AddRegister16ToHL(x),
 
+        Instruction.RotateLeftA x => RotateLeftA(x),
+        Instruction.RotateRightA x => RotateRightA(x),
+        Instruction.RotateLeftCarryA x => RotateLeftCarryA(x),
+        Instruction.RotateRightCarryA x => RotateRightCarryA(x),
+
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
 
@@ -143,7 +148,7 @@ public class Cpu
             _ => 0,
         };
 
-        if (inst.Operand ==  Instruction.Register8.HLAsPointer)
+        if (inst.Operand == Instruction.Register8.HLAsPointer)
         {
             newValue = (byte)(_bus.Read(_registers.HL) + 1);
             _bus.Write(_registers.HL, newValue);
@@ -170,7 +175,7 @@ public class Cpu
             _ => 0,
         };
 
-        if (inst.Operand ==  Instruction.Register8.HLAsPointer)
+        if (inst.Operand == Instruction.Register8.HLAsPointer)
         {
             oldValue = _bus.Read(_registers.HL);
             _bus.Write(_registers.HL, (byte)(oldValue - 1));
@@ -222,4 +227,69 @@ public class Cpu
 
         return 2;
     }
+
+    private ulong RotateLeftA(Instruction.RotateLeftA _)
+    {
+        byte a = _registers.A;
+        var carry = a > 0b0111_1111;
+        a <<= 1;
+        if (carry) a |= 0b0000_0001;
+
+        _registers.A = a;
+        _registers.Zero = false;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return 1;
+    }
+
+    private ulong RotateRightA(Instruction.RotateRightA _)
+    {
+        byte a = _registers.A;
+        var carry = (a % 2) == 1;
+        a >>= 1;
+        if (carry) a |= 0b1000_0000;
+
+        _registers.A = a;
+        _registers.Zero = false;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return 1;
+    }
+
+    private ulong RotateLeftCarryA(Instruction.RotateLeftCarryA _)
+    {
+        byte a = _registers.A;
+        var carry = a > 0b0111_1111;
+        a <<= 1;
+        if (_registers.Carry) a |= 0b0000_0001;
+
+        _registers.A = a;
+        _registers.Zero = false;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return 1;
+    }
+
+    private ulong RotateRightCarryA(Instruction.RotateRightCarryA _)
+    {
+        byte a = _registers.A;
+        var carry = (a % 2) == 1;
+        a >>= 1;
+        if (_registers.Carry) a |= 0b1000_0000;
+
+        _registers.A = a;
+        _registers.Zero = false;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return 1;
+    }
+
 }
