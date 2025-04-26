@@ -111,6 +111,9 @@ public class Cpu
 
         Instruction.JumpRelative x => JumpRelative(x),
         Instruction.ConditionalJumpRelative x => ConditionalJumpRelative(x),
+        Instruction.Jump x => Jump(x),
+        Instruction.ConditionalJump x => ConditionalJump(x),
+        Instruction.JumpHL x => JumpHL(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -794,5 +797,35 @@ public class Cpu
         }
 
         return condition ? 3ul : 2;
+    }
+
+    private ulong Jump(Instruction.Jump _)
+    {
+        _registers.ProgramCounter = FetchUShort();
+        return 4;
+    }
+
+    private ulong ConditionalJump(Instruction.ConditionalJump inst)
+    {
+        var condition = inst.Condition switch
+        {
+            Instruction.JumpCondition.NotZero => !_registers.Zero,
+            Instruction.JumpCondition.Zero => _registers.Zero,
+            Instruction.JumpCondition.NotCarry => !_registers.Carry,
+            Instruction.JumpCondition.Carry => _registers.Carry,
+            _ => false,
+        };
+
+        var target = FetchUShort();
+
+        if (condition) _registers.ProgramCounter = target;
+
+        return condition ? 4ul : 3;
+    }
+
+    private ulong JumpHL(Instruction.JumpHL _)
+    {
+        _registers.ProgramCounter = _registers.HL;
+        return 1;
     }
 }

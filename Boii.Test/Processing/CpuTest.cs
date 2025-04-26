@@ -667,6 +667,51 @@ public class CpuTest
         AssertCpu(2, new(0x0000 | 0b1000_0000, 0, 0, 0, 0, 0x0102), cpu);
     }
 
+    [Fact]
+    public void Jump()
+    {
+        var bus = Bus.From([
+            0b1100_0011, 0x01, 0x02   // jp 0
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        cpu.Step();
+
+        AssertCpu(4, new(0, 0, 0, 0, 0, 0x0201), cpu);
+    }
+
+    [Fact]
+    public void ConditionalJump()
+    {
+        var bus = Bus.From([
+            0b1100_0010, 0x04, 0x01,    // jp nz, 0x0104
+            0,                          // nop
+            0b1100_1010, 0x00, 0x00,    // jp z, 0
+            0,                          // nop
+            0b1101_0010, 0x0C, 0x01,    // jp nc, 0x010C
+            0,                          // nop
+            0b1101_1010, 0x00, 0x00     // jp c, 0
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 5);
+
+        AssertCpu(15, new(0, 0, 0, 0, 0, 0x010F), cpu);
+    }
+
+    [Fact]
+    public void JumpHL()
+    {
+        var bus = Bus.From([
+            0b1110_1001,    // jp hl
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        cpu.Step();
+
+        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
