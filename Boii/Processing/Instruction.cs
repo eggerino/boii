@@ -50,6 +50,9 @@ internal abstract record Instruction
     public sealed record SetCarryFlag : Instruction;
     public sealed record ComplementCarryFlag : Instruction;
 
+    public sealed record AndToA(Register8 Operand) : Instruction;
+    public sealed record AndToAImm8 : Instruction;
+
     public sealed record JumpRelative : Instruction;
     public sealed record ConditionalJumpRelative(JumpCondition Condition) : Instruction;
 
@@ -96,6 +99,9 @@ internal abstract record Instruction
 
         0b0011_0111 => new SetCarryFlag(),
         0b0011_1111 => new ComplementCarryFlag(),
+
+        var x when (x & 0b1111_1000) == 0b1010_0000 => new AndToA(ToRegister8(x, 0)),
+        0b1110_0110 => new AndToAImm8(),
 
         0b0001_1000 => new JumpRelative(),
         var x when (x & 0b1110_0111) == 0b0010_0000 => new ConditionalJumpRelative(ToCondition(x, 3)),

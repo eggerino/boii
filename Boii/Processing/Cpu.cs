@@ -102,6 +102,9 @@ public class Cpu
         Instruction.SetCarryFlag x => SetCarryFlag(x),
         Instruction.ComplementCarryFlag x => ComplementCarryFlag(x),
 
+        Instruction.AndToA x => AndToA(x),
+        Instruction.AndToAImm8 x => AndToAImm8(x),
+
         Instruction.JumpRelative x => JumpRelative(x),
         Instruction.ConditionalJumpRelative x => ConditionalJumpRelative(x),
 
@@ -647,6 +650,43 @@ public class Cpu
         _registers.Carry = !_registers.Carry;
 
         return 1;
+    }
+
+    private ulong AndToA(Instruction.AndToA inst)
+    {
+        byte operand = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+
+        _registers.A &= operand;
+        if (_registers.A == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = true;
+        _registers.Carry = false;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong AndToAImm8(Instruction.AndToAImm8 _)
+    {
+        byte operand = FetchByte();
+
+        _registers.A &= operand;
+        if (_registers.A == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = true;
+        _registers.Carry = false;
+
+        return 2;
     }
 
     private ulong JumpRelative(Instruction.JumpRelative _)
