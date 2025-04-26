@@ -712,6 +712,21 @@ public class CpuTest
         AssertCpu(1, new(0, 0, 0, 0, 0, 0x0), cpu);
     }
 
+    [Fact]
+    public void Call()
+    {
+        var bus = Bus.From([
+            0b1100_1101, 0x02, 0x01     // call 0x0102
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0x0005, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(6, new(0, 0, 0, 0, 0x0003, 0x0102), cpu);
+        Assert.Equal(0x01, bus.Read(0x04));
+        Assert.Equal(0x03, bus.Read(0x03));
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))

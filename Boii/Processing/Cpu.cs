@@ -115,6 +115,8 @@ public class Cpu
         Instruction.ConditionalJump x => ConditionalJump(x),
         Instruction.JumpHL x => JumpHL(x),
 
+        Instruction.Call x => Call(x),
+
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
 
@@ -827,5 +829,19 @@ public class Cpu
     {
         _registers.ProgramCounter = _registers.HL;
         return 1;
+    }
+
+    private ulong Call(Instruction.Call _)
+    {
+        var address = FetchUShort();
+
+        var returnAddress = _registers.ProgramCounter;
+        var (high, low) = BinaryUtil.ToBytes(returnAddress);
+        _bus.Write(--_registers.StackPointer, high);
+        _bus.Write(--_registers.StackPointer, low);
+
+        _registers.ProgramCounter = address;
+
+        return 6;
     }
 }
