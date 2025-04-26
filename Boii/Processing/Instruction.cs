@@ -1,3 +1,4 @@
+using System.Linq;
 using Boii.Util;
 
 namespace Boii.Processing;
@@ -70,7 +71,13 @@ internal abstract record Instruction
     public sealed record ConditionalReturn(JumpCondition Condition) : Instruction;
     public sealed record ReturnInterrupt : Instruction;
 
-    public static Instruction? FromOpcode(byte opcode) => opcode switch
+    private static readonly Instruction?[] _instructionLookup = InitializeLookup();
+
+    public static Instruction? FromOpcode(byte opcode) => _instructionLookup[opcode];
+
+    private static Instruction?[] InitializeLookup() => [.. Enumerable.Range(0, 0x100).Select(x => CreateFromOpcode((byte)x))];
+
+    public static Instruction? CreateFromOpcode(byte opcode) => opcode switch
     {
         0x00 => new Nop(),
         0b0001_0000 => new Stop(),
