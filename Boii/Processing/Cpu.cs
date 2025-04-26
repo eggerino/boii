@@ -82,6 +82,8 @@ public class Cpu
         Instruction.AddToAImm8Carry x => AddToAImm8Carry(x),
         Instruction.SubtractToA x => SubtractToA(x),
         Instruction.SubtractToAImm8 x => SubtractToAImm8(x),
+        Instruction.SubtractToACarry x => SubtractToACarry(x),
+        Instruction.SubtractToAImm8Carry x => SubtractToAImm8Carry(x),
 
         Instruction.IncrementRegister16 x => IncrementRegister16(x),
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
@@ -392,6 +394,51 @@ public class Cpu
     {
         byte operand = FetchByte();
         var oldValue = _registers.A;
+
+        byte newValue = (byte)(oldValue - operand);
+
+        _registers.A = newValue;
+        if (newValue == 0) _registers.Zero = true;
+        _registers.Subtraction = true;
+        if ((operand & 0b0000_1111) > (oldValue & 0b0000_1111)) _registers.HalfCarry = true;
+        if (operand > oldValue) _registers.Carry = true;
+
+        return 2;
+    }
+
+    private ulong SubtractToACarry(Instruction.SubtractToACarry inst)
+    {
+        var oldValue = _registers.A;
+        int operand = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+        if (_registers.Carry) operand++;
+
+        byte newValue = (byte)(oldValue - operand);
+
+        _registers.A = newValue;
+        if (newValue == 0) _registers.Zero = true;
+        _registers.Subtraction = true;
+        if ((operand & 0b0000_1111) > (oldValue & 0b0000_1111)) _registers.HalfCarry = true;
+        if (operand > oldValue) _registers.Carry = true;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong SubtractToAImm8Carry(Instruction.SubtractToAImm8Carry _)
+    {
+        int operand = FetchByte();
+        var oldValue = _registers.A;
+        if (_registers.Carry) operand++;
 
         byte newValue = (byte)(oldValue - operand);
 
