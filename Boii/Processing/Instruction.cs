@@ -71,6 +71,9 @@ internal abstract record Instruction
     public sealed record ConditionalReturn(JumpCondition Condition) : Instruction;
     public sealed record ReturnInterrupt : Instruction;
 
+    public sealed record Push(Register16Stack Register) : Instruction;
+    public sealed record Pop(Register16Stack Register) : Instruction;
+
     private static readonly Instruction?[] _instructionLookup = InitializeLookup();
 
     public static Instruction? FromOpcode(byte opcode) => _instructionLookup[opcode];
@@ -140,6 +143,9 @@ internal abstract record Instruction
         0b1100_1001 => new Return(),
         var x when (x & 0b1110_0111) == 0b1100_0000 => new ConditionalReturn(ToCondition(x, 3)),
         0b1101_1001 => new ReturnInterrupt(),
+
+        var x when (x & 0b1100_1111) == 0b1100_0101 => new Push(ToRegister16Stack(x, 4)),
+        var x when (x & 0b1100_1111) == 0b1100_0001 => new Pop(ToRegister16Stack(x, 4)),
 
         _ => null,
     };

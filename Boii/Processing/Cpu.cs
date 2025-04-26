@@ -103,6 +103,23 @@ public class Cpu
         else if (register == Instruction.Register16.StackPointer) _registers.StackPointer = value;
     }
 
+    private ushort GetRegister16Stack(Instruction.Register16Stack register) => register switch
+    {
+        Instruction.Register16Stack.BC => _registers.BC,
+        Instruction.Register16Stack.DE => _registers.DE,
+        Instruction.Register16Stack.HL => _registers.HL,
+        Instruction.Register16Stack.AF => _registers.AF,
+        _ => 0,
+    };
+
+    private void SetRegister16Stack(Instruction.Register16Stack register, ushort value)
+    {
+        if (register == Instruction.Register16Stack.BC) _registers.BC = value;
+        else if (register == Instruction.Register16Stack.DE) _registers.DE = value;
+        else if (register == Instruction.Register16Stack.HL) _registers.HL = value;
+        else if (register == Instruction.Register16Stack.AF) _registers.AF = value;
+    }
+
     private byte ReadFromRegister16Memory(Instruction.Register16Memory register) => register switch
     {
         Instruction.Register16Memory.BC => _bus.Read(_registers.BC),
@@ -200,6 +217,9 @@ public class Cpu
         Instruction.Return x => Return(x),
         Instruction.ConditionalReturn x => ConditionalReturn(x),
         Instruction.ReturnInterrupt x => ReturnInterrupt(x),
+
+        Instruction.Push x => Push(x),
+        Instruction.Pop x => Pop(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -789,5 +809,23 @@ public class Cpu
     private ulong ReturnInterrupt(Instruction.ReturnInterrupt _)
     {
         throw new NotImplementedException("[TODO] Interrupt not handled yet");
+    }
+
+    private ulong Push(Instruction.Push inst)
+    {
+        var value = GetRegister16Stack(inst.Register);
+        var (high, low) = BinaryUtil.ToBytes(value);
+        _bus.Write(--_registers.StackPointer, high);
+        _bus.Write(--_registers.StackPointer, low);
+        return 4;
+    }
+
+    private ulong Pop(Instruction.Pop inst)
+    {
+        var low = _bus.Read(_registers.StackPointer++);
+        var high = _bus.Read(_registers.StackPointer++);
+        var value = BinaryUtil.ToUShort(high, low);
+        SetRegister16Stack(inst.Register, value);
+        return 3;
     }
 }

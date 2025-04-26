@@ -803,6 +803,54 @@ public class CpuTest
         AssertCpu(15, new(0, 0, 0, 0, 0x0004, 0x0107), cpu);
     }
 
+    [Fact]
+    public void Push()
+    {
+        var bus = Bus.From([
+            0b1100_0101,        // push bc
+            0b1101_0101,        // push de
+            0b1110_0101,        // push hl
+            0b1111_0101,        // push af
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0708, 0x0102, 0x0304, 0x0506, 0x0008, 0x0100));
+
+        Step(cpu, 4);
+
+        AssertCpu(16, new(0x0708, 0x0102, 0x0304, 0x0506, 0x0000, 0x0104), cpu);
+        Assert.Equal(1, bus.Read(0x0007));
+        Assert.Equal(2, bus.Read(0x0006));
+        Assert.Equal(3, bus.Read(0x0005));
+        Assert.Equal(4, bus.Read(0x0004));
+        Assert.Equal(5, bus.Read(0x0003));
+        Assert.Equal(6, bus.Read(0x0002));
+        Assert.Equal(7, bus.Read(0x0001));
+        Assert.Equal(8, bus.Read(0x0000));
+    }
+
+    [Fact]
+    public void Pop()
+    {
+        var bus = Bus.From([
+            0b1100_0001,        // pop bc
+            0b1101_0001,        // pop de
+            0b1110_0001,        // pop hl
+            0b1111_0001,        // pop af
+        ]);
+        bus.Write(0, 2);
+        bus.Write(1, 1);
+        bus.Write(2, 4);
+        bus.Write(3, 3);
+        bus.Write(4, 6);
+        bus.Write(5, 5);
+        bus.Write(6, 8);
+        bus.Write(7, 7);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 4);
+
+        AssertCpu(12, new(0x0708, 0x0102, 0x0304, 0x0506, 0x0008, 0x0104), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
