@@ -21,6 +21,12 @@ internal abstract record Instruction
     public sealed record LoadFromA(Register16Memory Destination) : Instruction;
     public sealed record LoadIntoA(Register16Memory Source) : Instruction;
     public sealed record LoadFromStackPointer : Instruction;
+    public sealed record LoadFromAIntoCHighPointer : Instruction;
+    public sealed record LoadFromAIntoImm8HighPointer : Instruction;
+    public sealed record LoadFromAIntoImm16Pointer : Instruction;
+    public sealed record LoadFromCHighPointerIntoA : Instruction;
+    public sealed record LoadFromImm8HighPointerIntoA : Instruction;
+    public sealed record LoadFromImm16PointerIntoA : Instruction;
 
     public sealed record IncrementRegister8(Register8 Operand) : Instruction;
     public sealed record DecrementRegister8(Register8 Operand) : Instruction;
@@ -94,6 +100,12 @@ internal abstract record Instruction
         var x when (x & 0b1100_1111) == 0b0000_0010 => new LoadFromA(ToRegister16Memory(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1010 => new LoadIntoA(ToRegister16Memory(x, 4)),
         0b0000_1000 => new LoadFromStackPointer(),
+        0b1110_0010 => new LoadFromAIntoCHighPointer(),
+        0b1110_0000 => new LoadFromAIntoImm8HighPointer(),
+        0b1110_1010 => new LoadFromAIntoImm16Pointer(),
+        0b1111_0010 => new LoadFromCHighPointerIntoA(),
+        0b1111_0000 => new LoadFromImm8HighPointerIntoA(),
+        0b1111_1010 => new LoadFromImm16PointerIntoA(),
 
         var x when (x & 0b1100_0111) == 0b0000_0100 => new IncrementRegister8(ToRegister8(x, 3)),
         var x when (x & 0b1100_0111) == 0b0000_0101 => new DecrementRegister8(ToRegister8(x, 3)),

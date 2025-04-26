@@ -23,4 +23,11 @@ public class Bus : IGenericIO
     public byte Read(ushort address) => _data[address];
 
     public void Write(ushort address, byte value) => _data[address] = value;
+
+    public void EnsureSize(ushort size)
+    {
+        _data.EnsureCapacity(size);
+        for (int i = _data.Count; i < size; i++)
+            _data.Add(0);
+    }
 }

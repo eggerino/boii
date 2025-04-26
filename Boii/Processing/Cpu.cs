@@ -168,6 +168,12 @@ public class Cpu
         Instruction.LoadFromA x => LoadFromA(x),
         Instruction.LoadIntoA x => LoadIntoA(x),
         Instruction.LoadFromStackPointer x => LoadFromStackPointer(x),
+        Instruction.LoadFromAIntoCHighPointer x => LoadFromAIntoCHighPointer(x),
+        Instruction.LoadFromAIntoImm8HighPointer x => LoadFromAIntoImm8HighPointer(x),
+        Instruction.LoadFromAIntoImm16Pointer x => LoadFromAIntoImm16Pointer(x),
+        Instruction.LoadFromCHighPointerIntoA x => LoadFromCHighPointerIntoA(x),
+        Instruction.LoadFromImm8HighPointerIntoA x => LoadFromImm8HighPointerIntoA(x),
+        Instruction.LoadFromImm16PointerIntoA x => LoadFromImm16PointerIntoA(x),
 
         Instruction.IncrementRegister8 x => IncrementRegister8(x),
         Instruction.DecrementRegister8 x => DecrementRegister8(x),
@@ -281,6 +287,48 @@ public class Cpu
         _bus.Write(destination, (byte)(_registers.StackPointer >> 8));
 
         return 5;
+    }
+
+    private ulong LoadFromAIntoCHighPointer(Instruction.LoadFromAIntoCHighPointer _)
+    {
+        var address = (ushort)(0xff00 + _registers.C);
+        _bus.Write(address, _registers.A);
+        return 2;
+    }
+
+    private ulong LoadFromAIntoImm8HighPointer(Instruction.LoadFromAIntoImm8HighPointer _)
+    {
+        var address = (ushort)(0xFF00 + FetchByte());
+        _bus.Write(address, _registers.A);
+        return 3;
+    }
+
+    private ulong LoadFromAIntoImm16Pointer(Instruction.LoadFromAIntoImm16Pointer _)
+    {
+        var address = FetchUShort();
+        _bus.Write(address, _registers.A);
+        return 4;
+    }
+
+    private ulong LoadFromCHighPointerIntoA(Instruction.LoadFromCHighPointerIntoA _)
+    {
+        var address = (ushort)(0xff00 + _registers.C);
+        _registers.A = _bus.Read(address);
+        return 2;
+    }
+
+    private ulong LoadFromImm8HighPointerIntoA(Instruction.LoadFromImm8HighPointerIntoA _)
+    {
+        var address = (ushort)(0xFF00 + FetchByte());
+        _registers.A = _bus.Read(address);
+        return 3;
+    }
+
+    private ulong LoadFromImm16PointerIntoA(Instruction.LoadFromImm16PointerIntoA _)
+    {
+        var address = FetchUShort();
+        _registers.A = _bus.Read(address);
+        return 4;
     }
 
     private ulong IncrementRegister8(Instruction.IncrementRegister8 inst)

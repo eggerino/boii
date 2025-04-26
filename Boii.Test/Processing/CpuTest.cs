@@ -851,6 +851,82 @@ public class CpuTest
         AssertCpu(12, new(0x0708, 0x0102, 0x0304, 0x0506, 0x0008, 0x0104), cpu);
     }
 
+    [Fact]
+    public void LoadFromAIntoCHighPointer()
+    {
+        var bus = Bus.From([0b1110_0010]);  // ldh [c], a
+        bus.EnsureSize(0xFF02);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0400, 0x0001, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(2, new(0x0400, 0x0001, 0, 0, 0, 0x0101), cpu);
+        Assert.Equal(4, bus.Read(0xFF01));
+    }
+
+    [Fact]
+    public void LoadFromAIntoImm8HighPointer()
+    {
+        var bus = Bus.From([0b1110_0000, 0x01]);  // ldh [1], a
+        bus.EnsureSize(0xFF02);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0400, 0, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(3, new(0x0400, 0, 0, 0, 0, 0x0102), cpu);
+        Assert.Equal(4, bus.Read(0xFF01));
+    }
+    
+    [Fact]
+    public void LoadFromAIntoImm16Pointer()
+    {
+        var bus = Bus.From([0b1110_1010, 0x05, 0x00]);  // ld [5], a
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0400, 0, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(4, new(0x0400, 0, 0, 0, 0, 0x0103), cpu);
+        Assert.Equal(4, bus.Read(0x5));
+    }
+
+    [Fact]
+    public void LoadFromCHighPointerIntoA()
+    {
+        var bus = Bus.From([0b1111_0010]);  // ldh a, [c]
+        bus.EnsureSize(0xFF02);
+        bus.Write(0xFF01, 4);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0x0001, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(2, new(0x0400, 0x0001, 0, 0, 0, 0x0101), cpu);
+    }
+
+    [Fact]
+    public void LoadFromImm8HighPointerIntoA()
+    {
+        var bus = Bus.From([0b1111_0000, 0x01]);  // ldh [1], a
+        bus.EnsureSize(0xFF02);
+        bus.Write(0xFF01, 4);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(3, new(0x0400, 0, 0, 0, 0, 0x0102), cpu);
+    }
+    
+    [Fact]
+    public void LoadFromImm16PointerIntoA()
+    {
+        var bus = Bus.From([0b1111_1010, 0x05, 0x00]);  // ld [5], a
+        bus.Write(0x5, 4);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(4, new(0x0400, 0, 0, 0, 0, 0x0103), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
