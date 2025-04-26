@@ -76,6 +76,9 @@ public class Cpu
         Instruction.IncrementRegister8 x => IncrementRegister8(x),
         Instruction.DecrementRegister8 x => DecrementRegister8(x),
 
+        Instruction.AddToA x => AddToA(x),
+        Instruction.AddToAImm8 x => AddToAImm8(x),
+
         Instruction.IncrementRegister16 x => IncrementRegister16(x),
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
         Instruction.AddRegister16ToHL x => AddRegister16ToHL(x),
@@ -101,12 +104,12 @@ public class Cpu
 
     private ulong Stop(Instruction.Stop _)
     {
-        throw new NotImplementedException("Stop is currently not supported");
+        throw new NotImplementedException("[TODO] Stop is currently not supported");
     }
 
     private ulong Halt(Instruction.Halt _)
     {
-        throw new NotImplementedException("Halt is currently not supported");
+        throw new NotImplementedException("[TODO] Halt is currently not supported");
     }
 
     private ulong LoadImm8(Instruction.LoadImm8 inst)
@@ -248,6 +251,48 @@ public class Cpu
         if ((oldValue & 0b0000_1111) == 0) _registers.HalfCarry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 3ul : 1ul;
+    }
+
+    private ulong AddToA(Instruction.AddToA inst)
+    {
+        var oldValue = _registers.A;
+        byte operand = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+
+        byte newValue = (byte)(oldValue + operand);
+
+        _registers.A = newValue;
+        if (newValue == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        if (oldValue <= 0x0F && newValue > 0x0F) _registers.HalfCarry = true;
+        if (oldValue > newValue) _registers.Carry = true;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong AddToAImm8(Instruction.AddToAImm8 _)
+    {
+        var operand = FetchByte();
+        var oldValue = _registers.A;
+        byte newValue = (byte)(oldValue + operand);
+
+        _registers.A = newValue;
+        if (newValue == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        if (oldValue <= 0x0F && newValue > 0x0F) _registers.HalfCarry = true;
+        if (oldValue > newValue) _registers.Carry = true;
+
+        return 2;
     }
 
     private ulong IncrementRegister16(Instruction.IncrementRegister16 inst)

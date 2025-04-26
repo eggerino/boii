@@ -2,7 +2,7 @@ using Boii.Util;
 
 namespace Boii.Processing;
 
-public abstract record Instruction
+internal abstract record Instruction
 {
     public enum Register8 { B = 0, C, D, E, H, L, HLAsPointer, A }
     public enum Register16 { BC = 0, DE, HL, StackPointer }
@@ -23,6 +23,9 @@ public abstract record Instruction
 
     public sealed record IncrementRegister8(Register8 Operand) : Instruction;
     public sealed record DecrementRegister8(Register8 Operand) : Instruction;
+
+    public sealed record AddToA(Register8 Operand) : Instruction;
+    public sealed record AddToAImm8 : Instruction;
 
     public sealed record IncrementRegister16(Register16 Operand) : Instruction;
     public sealed record DecrementRegister16(Register16 Operand) : Instruction;
@@ -51,7 +54,7 @@ public abstract record Instruction
         var x when (x & 0b1100_0111) == 0b0000_0110 => new LoadImm8(ToRegister8(x, 3)),
         var x when (x & 0b1100_0000) == 0b0100_0000 => new LoadRegister8ToRegister8(        // LoadRegister8toRegister8 must be after halt
             Source: ToRegister8(x, 0),
-            Destination: ToRegister8(x, 3)),        
+            Destination: ToRegister8(x, 3)),
         var x when (x & 0b1100_1111) == 0b0000_0001 => new LoadImm16(ToRegister16(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_0010 => new LoadFromA(ToRegister16Memory(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1010 => new LoadIntoA(ToRegister16Memory(x, 4)),
@@ -59,6 +62,9 @@ public abstract record Instruction
 
         var x when (x & 0b1100_0111) == 0b0000_0100 => new IncrementRegister8(ToRegister8(x, 3)),
         var x when (x & 0b1100_0111) == 0b0000_0101 => new DecrementRegister8(ToRegister8(x, 3)),
+
+        var x when (x & 0b1111_1000) == 0b1000_0000 => new AddToA(ToRegister8(x, 0)),
+        0b1100_0110 => new AddToAImm8(),
 
         var x when (x & 0b1100_1111) == 0b0000_0011 => new IncrementRegister16(ToRegister16(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1011 => new DecrementRegister16(ToRegister16(x, 4)),
@@ -78,8 +84,6 @@ public abstract record Instruction
         0b0001_1000 => new JumpRelative(),
         var x when (x & 0b1110_0111) == 0b0010_0000 => new ConditionalJumpRelative(ToCondition(x, 3)),
 
-        
-        var 
         _ => null,
     };
 
