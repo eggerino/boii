@@ -84,6 +84,8 @@ public class Cpu
         Instruction.SubtractToAImm8 x => SubtractToAImm8(x),
         Instruction.SubtractToACarry x => SubtractToACarry(x),
         Instruction.SubtractToAImm8Carry x => SubtractToAImm8Carry(x),
+        Instruction.CompareToA x => CompareToA(x),
+        Instruction.CompareToAImm8 x => CompareToAImm8(x),
 
         Instruction.IncrementRegister16 x => IncrementRegister16(x),
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
@@ -323,7 +325,7 @@ public class Cpu
         _registers.A = newValue;
         if (newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-        
+
         if (_registers.Carry)
         {
             if (oldValue <= 0x0F && (newValue > 0x0F || newValue <= oldValue)) _registers.HalfCarry = true;
@@ -348,7 +350,7 @@ public class Cpu
         _registers.A = newValue;
         if (newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-                
+
         if (_registers.Carry)
         {
             if (oldValue <= 0x0F && (newValue > 0x0F || newValue <= oldValue)) _registers.HalfCarry = true;
@@ -447,6 +449,43 @@ public class Cpu
         _registers.Subtraction = true;
         if ((operand & 0b0000_1111) > (oldValue & 0b0000_1111)) _registers.HalfCarry = true;
         if (operand > oldValue) _registers.Carry = true;
+
+        return 2;
+    }
+
+    private ulong CompareToA(Instruction.CompareToA inst)
+    {
+        var a = _registers.A;
+        byte operand = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+
+        if (a == operand) _registers.Zero = true;
+        _registers.Subtraction = true;
+        if ((operand & 0b0000_1111) > (a & 0b0000_1111)) _registers.HalfCarry = true;
+        if (operand > a) _registers.Carry = true;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong CompareToAImm8(Instruction.CompareToAImm8 _)
+    {
+        var a = _registers.A;
+        var operand = FetchByte();
+
+        if (a == operand) _registers.Zero = true;
+        _registers.Subtraction = true;
+        if ((operand & 0b0000_1111) > (a & 0b0000_1111)) _registers.HalfCarry = true;
+        if (operand > a) _registers.Carry = true;
 
         return 2;
     }

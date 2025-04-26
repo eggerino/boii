@@ -32,6 +32,8 @@ internal abstract record Instruction
     public sealed record SubtractToAImm8 : Instruction;
     public sealed record SubtractToACarry(Register8 Operand) : Instruction;
     public sealed record SubtractToAImm8Carry : Instruction;
+    public sealed record CompareToA(Register8 Operand) : Instruction;
+    public sealed record CompareToAImm8 : Instruction;
 
     public sealed record IncrementRegister16(Register16 Operand) : Instruction;
     public sealed record DecrementRegister16(Register16 Operand) : Instruction;
@@ -77,6 +79,8 @@ internal abstract record Instruction
         0b1101_0110 => new SubtractToAImm8(),
         var x when (x & 0b1111_1000) == 0b1001_1000 => new SubtractToACarry(ToRegister8(x, 0)),
         0b1101_1110 => new SubtractToAImm8Carry(),
+        var x when (x & 0b1111_1000) == 0b1011_1000 => new CompareToA(ToRegister8(x, 0)),
+        0b1111_1110 => new CompareToAImm8(),
 
         var x when (x & 0b1100_1111) == 0b0000_0011 => new IncrementRegister16(ToRegister16(x, 4)),
         var x when (x & 0b1100_1111) == 0b0000_1011 => new DecrementRegister16(ToRegister16(x, 4)),
