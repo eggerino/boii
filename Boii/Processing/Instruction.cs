@@ -52,6 +52,10 @@ internal abstract record Instruction
 
     public sealed record AndToA(Register8 Operand) : Instruction;
     public sealed record AndToAImm8 : Instruction;
+    public sealed record XorToA(Register8 Operand) : Instruction;
+    public sealed record XorToAImm8 : Instruction;
+    public sealed record OrToA(Register8 Operand) : Instruction;
+    public sealed record OrToAImm8 : Instruction;
 
     public sealed record JumpRelative : Instruction;
     public sealed record ConditionalJumpRelative(JumpCondition Condition) : Instruction;
@@ -102,6 +106,10 @@ internal abstract record Instruction
 
         var x when (x & 0b1111_1000) == 0b1010_0000 => new AndToA(ToRegister8(x, 0)),
         0b1110_0110 => new AndToAImm8(),
+        var x when (x & 0b1111_1000) == 0b1010_1000 => new XorToA(ToRegister8(x, 0)),
+        0b1110_1110 => new XorToAImm8(),
+        var x when (x & 0b1111_1000) == 0b1011_0000 => new OrToA(ToRegister8(x, 0)),
+        0b1111_0110 => new OrToAImm8(),
 
         0b0001_1000 => new JumpRelative(),
         var x when (x & 0b1110_0111) == 0b0010_0000 => new ConditionalJumpRelative(ToCondition(x, 3)),

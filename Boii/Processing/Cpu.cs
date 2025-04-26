@@ -104,6 +104,10 @@ public class Cpu
 
         Instruction.AndToA x => AndToA(x),
         Instruction.AndToAImm8 x => AndToAImm8(x),
+        Instruction.XorToA x => XorToA(x),
+        Instruction.XorToAImm8 x => XorToAImm8(x),
+        Instruction.OrToA x => OrToA(x),
+        Instruction.OrToAImm8 x => OrToAImm8(x),
 
         Instruction.JumpRelative x => JumpRelative(x),
         Instruction.ConditionalJumpRelative x => ConditionalJumpRelative(x),
@@ -684,6 +688,80 @@ public class Cpu
         if (_registers.A == 0) _registers.Zero = true;
         _registers.Subtraction = false;
         _registers.HalfCarry = true;
+        _registers.Carry = false;
+
+        return 2;
+    }
+
+    private ulong XorToA(Instruction.XorToA inst)
+    {
+        byte operand = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+
+        _registers.A ^= operand;
+        if (_registers.A == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = false;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong XorToAImm8(Instruction.XorToAImm8 _)
+    {
+        byte operand = FetchByte();
+
+        _registers.A ^= operand;
+        if (_registers.A == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = false;
+
+        return 2;
+    }
+
+    private ulong OrToA(Instruction.OrToA inst)
+    {
+        byte operand = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+
+        _registers.A |= operand;
+        if (_registers.A == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = false;
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong OrToAImm8(Instruction.OrToAImm8 _)
+    {
+        byte operand = FetchByte();
+
+        _registers.A |= operand;
+        if (_registers.A == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
         _registers.Carry = false;
 
         return 2;

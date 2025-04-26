@@ -602,6 +602,71 @@ public class CpuTest
         AssertCpu(2, new(0x0000 | 0b1010_0000, 0, 0, 0, 0, 0x0102), cpu);
     }
 
+    [Fact]
+    public void XorToA()
+    {
+        var bus = Bus.From([
+            0b1010_1000,        // xor a, b
+            0b1010_1001,        // xor a, c
+            0b1010_1010,        // xor a, d
+            0b1010_1011,        // xor a, e
+            0b1010_1100,        // xor a, h
+            0b1010_1101,        // xor a, l
+            0b1010_1110,        // xor a, [hl]
+            0b1010_1111,        // xor a, a
+            0x00                // [hl]
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xFF00, 0x0001, 0x02F3, 0x0108, 0, 0x0100));
+
+        Step(cpu, 8);
+
+        AssertCpu(9, new(0x0000 | 0b1000_0000, 0x0001, 0x02F3, 0x0108, 0, 0x0108), cpu);
+    }
+
+    [Fact]
+    public void XorToAImm8()
+    {
+        var bus = Bus.From([
+            0b1110_1110, 0xF0,   // xor a, 0xF0
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xF000, 0, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(2, new(0x0000 | 0b1000_0000, 0, 0, 0, 0, 0x0102), cpu);
+    }
+
+    [Fact]
+    public void OrToA()
+    {
+        var bus = Bus.From([
+            0b1011_0000,        // or a, b
+            0b1011_0001,        // or a, c
+            0b1011_0010,        // or a, d
+            0b1011_0011,        // or a, e
+            0b1011_0100,        // or a, h
+            0b1011_0101,        // or a, l
+            0b1011_0110,        // or a, [hl]
+            0b1011_0111,        // or a, a
+            0x04                // [hl]
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0000, 0x0001, 0x02F3, 0x0108, 0, 0x0100));
+
+        Step(cpu, 8);
+        AssertCpu(9, new(0xFF00 | 0b1000_0000, 0x0001, 0x02F3, 0x0108, 0, 0x0108), cpu);
+    }
+
+    [Fact]
+    public void OrToAImm8()
+    {
+        var bus = Bus.From([
+            0b1111_0110, 0x00,   // or a, 0x00
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0000, 0, 0, 0, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(2, new(0x0000 | 0b1000_0000, 0, 0, 0, 0, 0x0102), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
