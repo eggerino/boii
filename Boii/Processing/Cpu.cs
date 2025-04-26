@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Boii.Abstractions;
 using Boii.Errors;
 using Boii.Util;
@@ -198,6 +197,9 @@ public class Cpu
         Instruction.Call x => Call(x),
         Instruction.ConditionalCall x => ConditionalCall(x),
         Instruction.Restart x => Restart(x),
+        Instruction.Return x => Return(x),
+        Instruction.ConditionalReturn x => ConditionalReturn(x),
+        Instruction.ReturnInterrupt x => ReturnInterrupt(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -754,5 +756,38 @@ public class Cpu
         _registers.ProgramCounter = address;
 
         return 4;
+    }
+
+    private ulong Return(Instruction.Return _)
+    {
+        var low = _bus.Read(_registers.StackPointer++);
+        var high = _bus.Read(_registers.StackPointer++);
+        var returnAddress = BinaryUtil.ToUShort(high, low);
+
+        _registers.ProgramCounter = returnAddress;
+
+        return 4;
+    }
+
+    private ulong ConditionalReturn(Instruction.ConditionalReturn inst)
+    {
+        var condition = GetCondition(inst.Condition);
+        if (!condition)
+        {
+            return 2;
+        }
+
+        var low = _bus.Read(_registers.StackPointer++);
+        var high = _bus.Read(_registers.StackPointer++);
+        var returnAddress = BinaryUtil.ToUShort(high, low);
+
+        _registers.ProgramCounter = returnAddress;
+
+        return 5;
+    }
+
+    private ulong ReturnInterrupt(Instruction.ReturnInterrupt _)
+    {
+        throw new NotImplementedException("[TODO] Interrupt not handled yet");
     }
 }

@@ -66,6 +66,9 @@ internal abstract record Instruction
     public sealed record Call : Instruction;
     public sealed record ConditionalCall(JumpCondition Condition) : Instruction;
     public sealed record Restart(byte Target) : Instruction;
+    public sealed record Return : Instruction;
+    public sealed record ConditionalReturn(JumpCondition Condition) : Instruction;
+    public sealed record ReturnInterrupt : Instruction;
 
     public static Instruction? FromOpcode(byte opcode) => opcode switch
     {
@@ -127,6 +130,9 @@ internal abstract record Instruction
         0b1100_1101 => new Call(),
         var x when (x & 0b1110_0111) == 0b1100_0100 => new ConditionalCall(ToCondition(x, 3)),
         var x when (x & 0b1100_0111) == 0b1100_0111 => new Restart(BinaryUtil.Slice(x, 3, 3)),
+        0b1100_1001 => new Return(),
+        var x when (x & 0b1110_0111) == 0b1100_0000 => new ConditionalReturn(ToCondition(x, 3)),
+        0b1101_1001 => new ReturnInterrupt(),
 
         _ => null,
     };
