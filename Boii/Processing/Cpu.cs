@@ -117,6 +117,7 @@ public class Cpu
 
         Instruction.Call x => Call(x),
         Instruction.ConditionalCall x => ConditionalCall(x),
+        Instruction.Restart x => Restart(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -871,5 +872,19 @@ public class Cpu
         _registers.ProgramCounter = address;
 
         return 6;
+    }
+
+    private ulong Restart(Instruction.Restart inst)
+    {
+        var address = (byte)(inst.Target * 8);
+
+        var returnAddress = _registers.ProgramCounter;
+        var (high, low) = BinaryUtil.ToBytes(returnAddress);
+        _bus.Write(--_registers.StackPointer, high);
+        _bus.Write(--_registers.StackPointer, low);
+
+        _registers.ProgramCounter = address;
+
+        return 4;
     }
 }

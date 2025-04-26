@@ -750,6 +750,21 @@ public class CpuTest
         Assert.Equal(0x0B, bus.Read(0x00));
     }
 
+    [Fact]
+    public void Restart()
+    {
+        var bus = Bus.From([
+            0b1111_1111                 // rst 7
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0x0005, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(4, new(0, 0, 0, 0, 0x0003, 7 * 8), cpu);
+        Assert.Equal(0x01, bus.Read(0x04));
+        Assert.Equal(0x01, bus.Read(0x03));
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
