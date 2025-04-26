@@ -78,6 +78,8 @@ public class Cpu
 
         Instruction.AddToA x => AddToA(x),
         Instruction.AddToAImm8 x => AddToAImm8(x),
+        Instruction.AddToACarry x => AddToACarry(x),
+        Instruction.AddToAImm8Carry x => AddToAImm8Carry(x),
 
         Instruction.IncrementRegister16 x => IncrementRegister16(x),
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
@@ -274,7 +276,7 @@ public class Cpu
         _registers.A = newValue;
         if (newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-        if (oldValue <= 0x0F && newValue > 0x0F) _registers.HalfCarry = true;
+        if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
         if (oldValue > newValue) _registers.Carry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
@@ -289,8 +291,70 @@ public class Cpu
         _registers.A = newValue;
         if (newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-        if (oldValue <= 0x0F && newValue > 0x0F) _registers.HalfCarry = true;
+        if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
         if (oldValue > newValue) _registers.Carry = true;
+
+        return 2;
+    }
+
+    private ulong AddToACarry(Instruction.AddToACarry inst)
+    {
+        var oldValue = _registers.A;
+        byte operand = inst.Operand switch
+        {
+            Instruction.Register8.B => _registers.B,
+            Instruction.Register8.C => _registers.C,
+            Instruction.Register8.D => _registers.D,
+            Instruction.Register8.E => _registers.E,
+            Instruction.Register8.H => _registers.H,
+            Instruction.Register8.L => _registers.L,
+            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+            Instruction.Register8.A => _registers.A,
+            _ => 0,
+        };
+
+        byte newValue = (byte)(oldValue + operand);
+        if (_registers.Carry) newValue++;
+
+        _registers.A = newValue;
+        if (newValue == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+        
+        if (_registers.Carry)
+        {
+            if (oldValue <= 0x0F && (newValue > 0x0F || newValue <= oldValue)) _registers.HalfCarry = true;
+            if (oldValue >= newValue) _registers.Carry = true;
+        }
+        else
+        {
+            if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
+            if (oldValue > newValue) _registers.Carry = true;
+        }
+
+        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong AddToAImm8Carry(Instruction.AddToAImm8Carry _)
+    {
+        var operand = FetchByte();
+        var oldValue = _registers.A;
+        byte newValue = (byte)(oldValue + operand);
+        if (_registers.Carry) newValue++;
+
+        _registers.A = newValue;
+        if (newValue == 0) _registers.Zero = true;
+        _registers.Subtraction = false;
+                
+        if (_registers.Carry)
+        {
+            if (oldValue <= 0x0F && (newValue > 0x0F || newValue <= oldValue)) _registers.HalfCarry = true;
+            if (oldValue >= newValue) _registers.Carry = true;
+        }
+        else
+        {
+            if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
+            if (oldValue > newValue) _registers.Carry = true;
+        }
 
         return 2;
     }
