@@ -79,6 +79,7 @@ internal abstract record Instruction
 
     public sealed record Push(Register16Stack Register) : Instruction;
     public sealed record Pop(Register16Stack Register) : Instruction;
+    public sealed record AddToStackPointerImm8 : Instruction;
 
     private static readonly Instruction?[] _instructionLookup = InitializeLookup();
 
@@ -158,6 +159,7 @@ internal abstract record Instruction
 
         var x when (x & 0b1100_1111) == 0b1100_0101 => new Push(ToRegister16Stack(x, 4)),
         var x when (x & 0b1100_1111) == 0b1100_0001 => new Pop(ToRegister16Stack(x, 4)),
+        0b1110_1000 => new AddToStackPointerImm8(),
 
         _ => null,
     };

@@ -226,6 +226,7 @@ public class Cpu
 
         Instruction.Push x => Push(x),
         Instruction.Pop x => Pop(x),
+        Instruction.AddToStackPointerImm8 x => AddToStackPointerImm8(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -875,5 +876,20 @@ public class Cpu
         var value = BinaryUtil.ToUShort(high, low);
         SetRegister16Stack(inst.Register, value);
         return 3;
+    }
+
+    private ulong AddToStackPointerImm8(Instruction.AddToStackPointerImm8 _)
+    {
+        var oldValue = _registers.StackPointer;
+        var operand = (sbyte)FetchByte();
+        var newValue = oldValue + operand;
+
+        _registers.StackPointer = (ushort)newValue;
+        _registers.Zero = false;
+        _registers.Subtraction = false;
+        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
+        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
+
+        return 4;
     }
 }

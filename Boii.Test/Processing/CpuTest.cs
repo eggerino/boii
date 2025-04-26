@@ -876,7 +876,7 @@ public class CpuTest
         AssertCpu(3, new(0x0400, 0, 0, 0, 0, 0x0102), cpu);
         Assert.Equal(4, bus.Read(0xFF01));
     }
-    
+
     [Fact]
     public void LoadFromAIntoImm16Pointer()
     {
@@ -914,7 +914,7 @@ public class CpuTest
 
         AssertCpu(3, new(0x0400, 0, 0, 0, 0, 0x0102), cpu);
     }
-    
+
     [Fact]
     public void LoadFromImm16PointerIntoA()
     {
@@ -925,6 +925,21 @@ public class CpuTest
         cpu.Step();
 
         AssertCpu(4, new(0x0400, 0, 0, 0, 0, 0x0103), cpu);
+    }
+
+    [Fact]
+    public void AddToStackPointerImm8()
+    {
+        var bus = Bus.From([
+            0b1110_1000, 0x7F,  // add sp, 0x7F
+            0b1110_1000, 0x7F,  // add sp, 0x7F
+            0b1110_1000, 0x7F,  // add sp, 0x7F
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0x000F, 0x0100));
+
+        Step(cpu, 3);
+
+        AssertCpu(12, new(0b0011_0000, 0, 0, 0, 0x018C, 0x0106), cpu);
     }
 
     private static void Step(Cpu cpu, int amount)
