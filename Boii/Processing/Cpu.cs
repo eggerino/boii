@@ -161,6 +161,8 @@ public class Cpu
         Instruction.Nop x => Nop(x),
         Instruction.Stop x => Stop(x),
         Instruction.Halt x => Halt(x),
+        Instruction.EnableInterrupt x => EnableInterrupt(x),
+        Instruction.DisableInterrupt x => DisableInterrupt(x),
 
         Instruction.LoadImm8 x => LoadImm8(x),
         Instruction.LoadRegister8ToRegister8 x => LoadRegister8ToRegister8(x),
@@ -227,6 +229,8 @@ public class Cpu
         Instruction.Push x => Push(x),
         Instruction.Pop x => Pop(x),
         Instruction.AddToStackPointerImm8 x => AddToStackPointerImm8(x),
+        Instruction.LoadStackPointerPlusImm8IntoHL x => LoadStackPointerPlusImm8IntoHL(x),
+        Instruction.LoadFromHLIntoStackPointer x => LoadFromHLIntoStackPointer(x),
 
         _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
     };
@@ -241,6 +245,16 @@ public class Cpu
     private ulong Halt(Instruction.Halt _)
     {
         throw new NotImplementedException("[TODO] Halt is currently not supported");
+    }
+
+    private ulong EnableInterrupt(Instruction.EnableInterrupt _)
+    {
+        throw new NotImplementedException("[TODO] EnableInterrupt is currently not supported");
+    }
+
+    private ulong DisableInterrupt(Instruction.DisableInterrupt _)
+    {
+        throw new NotImplementedException("[TODO] DisableInterrupt is currently not supported");
     }
 
     private ulong LoadImm8(Instruction.LoadImm8 inst)
@@ -891,5 +905,26 @@ public class Cpu
         if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
 
         return 4;
+    }
+
+    private ulong LoadStackPointerPlusImm8IntoHL(Instruction.LoadStackPointerPlusImm8IntoHL _)
+    {
+        var oldValue = _registers.StackPointer;
+        var operand = (sbyte)FetchByte();
+        var newValue = oldValue + operand;
+
+        _registers.HL = (ushort)newValue;
+        _registers.Zero = false;
+        _registers.Subtraction = false;
+        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
+        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
+
+        return 3;
+    }
+
+    private ulong LoadFromHLIntoStackPointer(Instruction.LoadFromHLIntoStackPointer _)
+    {
+        _registers.StackPointer = _registers.HL;
+        return 2;
     }
 }

@@ -942,6 +942,32 @@ public class CpuTest
         AssertCpu(12, new(0b0011_0000, 0, 0, 0, 0x018C, 0x0106), cpu);
     }
 
+    [Theory]
+    [InlineData(0b0010_0000, 0x000F, 0x008E)]
+    [InlineData(0b0001_0000, 0x00FF, 0x017E)]
+    public void LoadStackPointerPlusImm8IntoHL(byte flags, ushort stackPointer, ushort hl)
+    {
+        var bus = Bus.From([
+            0b1111_1000, 0x7F,  // ld hl, sp + 0x7F
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, stackPointer, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(3, new(flags, 0, 0, hl, stackPointer, 0x0102), cpu);
+    }
+
+    [Fact]
+    public void LoadFromHLIntoStackPointer()
+    {
+        var bus = Bus.From([0b1111_1001]);  // ld sp, hl
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0xFFFF, 0, 0x0100));
+
+        cpu.Step();
+
+        AssertCpu(2, new(0, 0, 0, 0xFFFF, 0xFFFF, 0x0101), cpu);
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))

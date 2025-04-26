@@ -14,6 +14,8 @@ internal abstract record Instruction
     public sealed record Nop : Instruction;
     public sealed record Stop : Instruction;
     public sealed record Halt : Instruction;
+    public sealed record EnableInterrupt : Instruction;
+    public sealed record DisableInterrupt : Instruction;
 
     public sealed record LoadImm8(Register8 Destination) : Instruction;
     public sealed record LoadRegister8ToRegister8(Register8 Source, Register8 Destination) : Instruction;
@@ -80,6 +82,8 @@ internal abstract record Instruction
     public sealed record Push(Register16Stack Register) : Instruction;
     public sealed record Pop(Register16Stack Register) : Instruction;
     public sealed record AddToStackPointerImm8 : Instruction;
+    public sealed record LoadStackPointerPlusImm8IntoHL : Instruction;
+    public sealed record LoadFromHLIntoStackPointer : Instruction;
 
     private static readonly Instruction?[] _instructionLookup = InitializeLookup();
 
@@ -92,6 +96,8 @@ internal abstract record Instruction
         0x00 => new Nop(),
         0b0001_0000 => new Stop(),
         0b0111_0110 => new Halt(),
+        0b1111_1011 => new EnableInterrupt(),
+        0b1111_0011 => new DisableInterrupt(),
 
         var x when (x & 0b1100_0111) == 0b0000_0110 => new LoadImm8(ToRegister8(x, 3)),
         var x when (x & 0b1100_0000) == 0b0100_0000 => new LoadRegister8ToRegister8(        // LoadRegister8toRegister8 must be after halt
@@ -160,6 +166,8 @@ internal abstract record Instruction
         var x when (x & 0b1100_1111) == 0b1100_0101 => new Push(ToRegister16Stack(x, 4)),
         var x when (x & 0b1100_1111) == 0b1100_0001 => new Pop(ToRegister16Stack(x, 4)),
         0b1110_1000 => new AddToStackPointerImm8(),
+        0b1111_1000 => new LoadStackPointerPlusImm8IntoHL(),
+        0b1111_1001 => new LoadFromHLIntoStackPointer(),
 
         _ => null,
     };
