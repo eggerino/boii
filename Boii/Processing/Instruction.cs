@@ -64,6 +64,7 @@ internal abstract record Instruction
     public sealed record JumpHL : Instruction;
 
     public sealed record Call : Instruction;
+    public sealed record ConditionalCall(JumpCondition Condition) : Instruction;
 
     public static Instruction? FromOpcode(byte opcode) => opcode switch
     {
@@ -123,6 +124,7 @@ internal abstract record Instruction
         0b1110_1001 => new JumpHL(),
 
         0b1100_1101 => new Call(),
+        var x when (x & 0b1110_0111) == 0b1100_0100 => new ConditionalCall(ToCondition(x, 3)),
 
         _ => null,
     };

@@ -727,6 +727,29 @@ public class CpuTest
         Assert.Equal(0x03, bus.Read(0x03));
     }
 
+    [Fact]
+    public void ConditionalCall()
+    {
+        var bus = Bus.From([
+            0b1100_0100, 0x04, 0x01,    // call nz, 0x0104
+            0,                          // nop
+            0b1100_1100, 0x08, 0x01,    // call z, 0x0108
+            0,                          // nop
+            0b1101_0100, 0x0C, 0x01,    // call nc, 0x010C
+            0,                          // nop
+            0b1101_1100, 0x00, 0x00     // call c, 0
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0x0004, 0x0100));
+
+        Step(cpu, 5);
+
+        AssertCpu(19, new(0, 0, 0, 0, 0x0000, 0x010F), cpu);
+        Assert.Equal(0x01, bus.Read(0x03));
+        Assert.Equal(0x03, bus.Read(0x02));
+        Assert.Equal(0x01, bus.Read(0x01));
+        Assert.Equal(0x0B, bus.Read(0x00));
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
