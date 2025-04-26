@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using Boii.Abstractions;
 using Boii.Errors;
 using Boii.Util;
@@ -59,6 +61,84 @@ public class Cpu
         var high = FetchByte();
         return BinaryUtil.ToUShort(high, low);
     }
+
+    private byte GetRegister8(Instruction.Register8 register) => register switch
+    {
+        Instruction.Register8.B => _registers.B,
+        Instruction.Register8.C => _registers.C,
+        Instruction.Register8.D => _registers.D,
+        Instruction.Register8.E => _registers.E,
+        Instruction.Register8.H => _registers.H,
+        Instruction.Register8.L => _registers.L,
+        Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
+        Instruction.Register8.A => _registers.A,
+        _ => 0,
+    };
+
+    private void SetRegister8(Instruction.Register8 register, byte value)
+    {
+        if (register == Instruction.Register8.B) _registers.B = value;
+        else if (register == Instruction.Register8.C) _registers.C = value;
+        else if (register == Instruction.Register8.D) _registers.D = value;
+        else if (register == Instruction.Register8.E) _registers.E = value;
+        else if (register == Instruction.Register8.H) _registers.H = value;
+        else if (register == Instruction.Register8.L) _registers.L = value;
+        else if (register == Instruction.Register8.HLAsPointer) _bus.Write(_registers.HL, value);
+        else if (register == Instruction.Register8.A) _registers.A = value;
+    }
+
+    private ushort GetRegister16(Instruction.Register16 register) => register switch
+    {
+        Instruction.Register16.BC => _registers.BC,
+        Instruction.Register16.DE => _registers.DE,
+        Instruction.Register16.HL => _registers.HL,
+        Instruction.Register16.StackPointer => _registers.StackPointer,
+        _ => 0,
+    };
+
+    private void SetRegister16(Instruction.Register16 register, ushort value)
+    {
+        if (register == Instruction.Register16.BC) _registers.BC = value;
+        else if (register == Instruction.Register16.DE) _registers.DE = value;
+        else if (register == Instruction.Register16.HL) _registers.HL = value;
+        else if (register == Instruction.Register16.StackPointer) _registers.StackPointer = value;
+    }
+
+    private byte ReadFromRegister16Memory(Instruction.Register16Memory register) => register switch
+    {
+        Instruction.Register16Memory.BC => _bus.Read(_registers.BC),
+        Instruction.Register16Memory.DE => _bus.Read(_registers.DE),
+        Instruction.Register16Memory.HLInc => _bus.Read(_registers.HL++),
+        Instruction.Register16Memory.HLDec => _bus.Read(_registers.HL--),
+        _ => 0,
+    };
+
+    private void WriteToRegister16Memory(Instruction.Register16Memory register, byte value)
+    {
+        if (register == Instruction.Register16Memory.BC) _bus.Write(_registers.BC, value);
+        else if (register == Instruction.Register16Memory.DE) _bus.Write(_registers.DE, value);
+        else if (register == Instruction.Register16Memory.HLInc) _bus.Write(_registers.HL++, value);
+        else if (register == Instruction.Register16Memory.HLDec) _bus.Write(_registers.HL--, value);
+    }
+
+    private bool GetCondition(Instruction.JumpCondition condition) => condition switch
+    {
+        Instruction.JumpCondition.NotZero => !_registers.Zero,
+        Instruction.JumpCondition.Zero => _registers.Zero,
+        Instruction.JumpCondition.NotCarry => !_registers.Carry,
+        Instruction.JumpCondition.Carry => _registers.Carry,
+        _ => false,
+    };
+
+    private bool IsOverflowBit3(int oldValue, int newValue) => oldValue <= 0x000F && newValue > 0x000F;
+
+    private bool IsOverflowBit7(int oldValue, int newValue) => oldValue <= 0x00FF && newValue > 0x00FF;
+
+    private bool IsOverflowBit11(int oldValue, int newValue) => oldValue <= 0x0FFF && newValue > 0x0FFF;
+
+    private bool IsOverflowBit15(int oldValue, int newValue) => oldValue <= 0xFFFF && newValue > 0xFFFF;
+
+    private bool IsBorrowBit4(int oldValue, int decrement) => (oldValue & 0xF) < (decrement & 0xF);
 
     private ulong Execute(Instruction inst) => inst switch
     {
@@ -137,77 +217,37 @@ public class Cpu
     private ulong LoadImm8(Instruction.LoadImm8 inst)
     {
         var value = FetchByte();
-
-        if (inst.Destination == Instruction.Register8.B) _registers.B = value;
-        if (inst.Destination == Instruction.Register8.C) _registers.C = value;
-        if (inst.Destination == Instruction.Register8.D) _registers.D = value;
-        if (inst.Destination == Instruction.Register8.E) _registers.E = value;
-        if (inst.Destination == Instruction.Register8.H) _registers.H = value;
-        if (inst.Destination == Instruction.Register8.L) _registers.L = value;
-        if (inst.Destination == Instruction.Register8.HLAsPointer) _bus.Write(_registers.HL, value);
-        if (inst.Destination == Instruction.Register8.A) _registers.A = value;
-
+        SetRegister8(inst.Destination, value);
         return inst.Destination == Instruction.Register8.HLAsPointer ? 3ul : 2ul;
     }
 
     private ulong LoadRegister8ToRegister8(Instruction.LoadRegister8ToRegister8 inst)
     {
-        byte value = inst.Source switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
-
-        if (inst.Destination == Instruction.Register8.B) _registers.B = value;
-        if (inst.Destination == Instruction.Register8.C) _registers.C = value;
-        if (inst.Destination == Instruction.Register8.D) _registers.D = value;
-        if (inst.Destination == Instruction.Register8.E) _registers.E = value;
-        if (inst.Destination == Instruction.Register8.H) _registers.H = value;
-        if (inst.Destination == Instruction.Register8.L) _registers.L = value;
-        if (inst.Destination == Instruction.Register8.HLAsPointer) _bus.Write(_registers.HL, value);
-        if (inst.Destination == Instruction.Register8.A) _registers.A = value;
-
-        return (inst.Source == Instruction.Register8.HLAsPointer || inst.Destination == Instruction.Register8.HLAsPointer) ? 2ul : 1;
+        var value = GetRegister8(inst.Source);
+        SetRegister8(inst.Destination, value);
+        return Enumerable.Any([inst.Source, inst.Destination], x => x == Instruction.Register8.HLAsPointer)
+            ? 2ul
+            : 1;
     }
 
     private ulong LoadImm16(Instruction.LoadImm16 inst)
     {
         var value = FetchUShort();
-
-        if (inst.Destination == Instruction.Register16.BC) _registers.BC = value;
-        if (inst.Destination == Instruction.Register16.DE) _registers.DE = value;
-        if (inst.Destination == Instruction.Register16.HL) _registers.HL = value;
-        if (inst.Destination == Instruction.Register16.StackPointer) _registers.StackPointer = value;
-
+        SetRegister16(inst.Destination, value);
         return 3;
     }
 
     private ulong LoadFromA(Instruction.LoadFromA inst)
     {
         var value = _registers.A;
-
-        if (inst.Destination == Instruction.Register16Memory.BC) _bus.Write(_registers.BC, value);
-        if (inst.Destination == Instruction.Register16Memory.DE) _bus.Write(_registers.DE, value);
-        if (inst.Destination == Instruction.Register16Memory.HLInc) _bus.Write(_registers.HL++, value);
-        if (inst.Destination == Instruction.Register16Memory.HLDec) _bus.Write(_registers.HL--, value);
-
+        WriteToRegister16Memory(inst.Destination, value);
         return 2;
     }
 
     private ulong LoadIntoA(Instruction.LoadIntoA inst)
     {
-        if (inst.Source == Instruction.Register16Memory.BC) _registers.A = _bus.Read(_registers.BC);
-        if (inst.Source == Instruction.Register16Memory.DE) _registers.A = _bus.Read(_registers.DE);
-        if (inst.Source == Instruction.Register16Memory.HLInc) _registers.A = _bus.Read(_registers.HL++);
-        if (inst.Source == Instruction.Register16Memory.HLDec) _registers.A = _bus.Read(_registers.HL--);
-
+        var value = ReadFromRegister16Memory(inst.Source);
+        _registers.A = value;
         return 2;
     }
 
@@ -223,54 +263,26 @@ public class Cpu
 
     private ulong IncrementRegister8(Instruction.IncrementRegister8 inst)
     {
-        byte newValue = inst.Operand switch
-        {
-            Instruction.Register8.B => ++_registers.B,
-            Instruction.Register8.C => ++_registers.C,
-            Instruction.Register8.D => ++_registers.D,
-            Instruction.Register8.E => ++_registers.E,
-            Instruction.Register8.H => ++_registers.H,
-            Instruction.Register8.L => ++_registers.L,
-            Instruction.Register8.A => ++_registers.A,
-            _ => 0,
-        };
+        int value = GetRegister8(inst.Operand);
+        value++;
+        SetRegister8(inst.Operand, (byte)value);
 
-        if (inst.Operand == Instruction.Register8.HLAsPointer)
-        {
-            newValue = (byte)(_bus.Read(_registers.HL) + 1);
-            _bus.Write(_registers.HL, newValue);
-        }
-
-        if (newValue == 0) _registers.Zero = true;
+        if ((byte)value == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-        if (newValue == 0x10) _registers.HalfCarry = true;
+        if (IsOverflowBit3(value - 1, value)) _registers.HalfCarry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 3ul : 1ul;
     }
 
     private ulong DecrementRegister8(Instruction.DecrementRegister8 inst)
     {
-        byte oldValue = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B--,
-            Instruction.Register8.C => _registers.C--,
-            Instruction.Register8.D => _registers.D--,
-            Instruction.Register8.E => _registers.E--,
-            Instruction.Register8.H => _registers.H--,
-            Instruction.Register8.L => _registers.L--,
-            Instruction.Register8.A => _registers.A--,
-            _ => 0,
-        };
+        int value = GetRegister8(inst.Operand);
+        value--;
+        SetRegister8(inst.Operand, (byte)value);
 
-        if (inst.Operand == Instruction.Register8.HLAsPointer)
-        {
-            oldValue = _bus.Read(_registers.HL);
-            _bus.Write(_registers.HL, (byte)(oldValue - 1));
-        }
-
-        if (oldValue == 1) _registers.Zero = true;
+        if ((byte)value == 0) _registers.Zero = true;
         _registers.Subtraction = true;
-        if ((oldValue & 0b0000_1111) == 0) _registers.HalfCarry = true;
+        if (IsBorrowBit4(value + 1, 1)) _registers.HalfCarry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 3ul : 1ul;
     }
@@ -278,26 +290,14 @@ public class Cpu
     private ulong AddToA(Instruction.AddToA inst)
     {
         var oldValue = _registers.A;
-        byte operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
+        var operand = GetRegister8(inst.Operand);
+        var newValue = oldValue + operand;
 
-        byte newValue = (byte)(oldValue + operand);
-
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-        if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
-        if (oldValue > newValue) _registers.Carry = true;
+        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
+        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
     }
@@ -306,13 +306,13 @@ public class Cpu
     {
         var operand = FetchByte();
         var oldValue = _registers.A;
-        byte newValue = (byte)(oldValue + operand);
+        var newValue = oldValue + operand;
 
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-        if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
-        if (oldValue > newValue) _registers.Carry = true;
+        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
+        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
 
         return 2;
     }
@@ -320,36 +320,15 @@ public class Cpu
     private ulong AddToACarry(Instruction.AddToACarry inst)
     {
         var oldValue = _registers.A;
-        byte operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
-
-        byte newValue = (byte)(oldValue + operand);
+        var operand = GetRegister8(inst.Operand);
+        var newValue = oldValue + operand;
         if (_registers.Carry) newValue++;
 
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-
-        if (_registers.Carry)
-        {
-            if (oldValue <= 0x0F && (newValue > 0x0F || newValue <= oldValue)) _registers.HalfCarry = true;
-            if (oldValue >= newValue) _registers.Carry = true;
-        }
-        else
-        {
-            if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
-            if (oldValue > newValue) _registers.Carry = true;
-        }
+        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
+        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
     }
@@ -358,23 +337,14 @@ public class Cpu
     {
         var operand = FetchByte();
         var oldValue = _registers.A;
-        byte newValue = (byte)(oldValue + operand);
+        var newValue = oldValue + operand;
         if (_registers.Carry) newValue++;
 
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = false;
-
-        if (_registers.Carry)
-        {
-            if (oldValue <= 0x0F && (newValue > 0x0F || newValue <= oldValue)) _registers.HalfCarry = true;
-            if (oldValue >= newValue) _registers.Carry = true;
-        }
-        else
-        {
-            if (oldValue <= 0x0F && (newValue > 0x0F || newValue < oldValue)) _registers.HalfCarry = true;
-            if (oldValue > newValue) _registers.Carry = true;
-        }
+        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
+        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
 
         return 2;
     }
@@ -382,25 +352,13 @@ public class Cpu
     private ulong SubtractToA(Instruction.SubtractToA inst)
     {
         var oldValue = _registers.A;
-        byte operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
+        var operand = GetRegister8(inst.Operand);
+        var newValue = oldValue - operand;
 
-        byte newValue = (byte)(oldValue - operand);
-
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = true;
-        if ((operand & 0b0000_1111) > (oldValue & 0b0000_1111)) _registers.HalfCarry = true;
+        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
         if (operand > oldValue) _registers.Carry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
@@ -408,15 +366,15 @@ public class Cpu
 
     private ulong SubtractToAImm8(Instruction.SubtractToAImm8 _)
     {
-        byte operand = FetchByte();
+        var operand = FetchByte();
         var oldValue = _registers.A;
 
-        byte newValue = (byte)(oldValue - operand);
+        var newValue = oldValue - operand;
 
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = true;
-        if ((operand & 0b0000_1111) > (oldValue & 0b0000_1111)) _registers.HalfCarry = true;
+        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
         if (operand > oldValue) _registers.Carry = true;
 
         return 2;
@@ -425,26 +383,14 @@ public class Cpu
     private ulong SubtractToACarry(Instruction.SubtractToACarry inst)
     {
         var oldValue = _registers.A;
-        int operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
+        int operand = GetRegister8(inst.Operand);
         if (_registers.Carry) operand++;
+        var newValue = oldValue - operand;
 
-        byte newValue = (byte)(oldValue - operand);
-
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = true;
-        if ((operand & 0b0000_1111) > (oldValue & 0b0000_1111)) _registers.HalfCarry = true;
+        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
         if (operand > oldValue) _registers.Carry = true;
 
         return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
@@ -455,13 +401,12 @@ public class Cpu
         int operand = FetchByte();
         var oldValue = _registers.A;
         if (_registers.Carry) operand++;
+        var newValue = oldValue - operand;
 
-        byte newValue = (byte)(oldValue - operand);
-
-        _registers.A = newValue;
-        if (newValue == 0) _registers.Zero = true;
+        _registers.A = (byte)newValue;
+        if ((byte)newValue == 0) _registers.Zero = true;
         _registers.Subtraction = true;
-        if ((operand & 0b0000_1111) > (oldValue & 0b0000_1111)) _registers.HalfCarry = true;
+        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
         if (operand > oldValue) _registers.Carry = true;
 
         return 2;
@@ -470,18 +415,7 @@ public class Cpu
     private ulong CompareToA(Instruction.CompareToA inst)
     {
         var a = _registers.A;
-        byte operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
+        var operand = GetRegister8(inst.Operand);
 
         if (a == operand) _registers.Zero = true;
         _registers.Subtraction = true;
@@ -506,40 +440,30 @@ public class Cpu
 
     private ulong IncrementRegister16(Instruction.IncrementRegister16 inst)
     {
-        if (inst.Operand == Instruction.Register16.BC) _registers.BC++;
-        if (inst.Operand == Instruction.Register16.DE) _registers.DE++;
-        if (inst.Operand == Instruction.Register16.HL) _registers.HL++;
-        if (inst.Operand == Instruction.Register16.StackPointer) _registers.StackPointer++;
-
+        var value = GetRegister16(inst.Operand);
+        value++;
+        SetRegister16(inst.Operand, value);
         return 2;
     }
 
     private ulong DecrementRegister16(Instruction.DecrementRegister16 inst)
     {
-        if (inst.Operand == Instruction.Register16.BC) _registers.BC--;
-        if (inst.Operand == Instruction.Register16.DE) _registers.DE--;
-        if (inst.Operand == Instruction.Register16.HL) _registers.HL--;
-        if (inst.Operand == Instruction.Register16.StackPointer) _registers.StackPointer--;
-
+        var value = GetRegister16(inst.Operand);
+        value--;
+        SetRegister16(inst.Operand, value);
         return 2;
     }
 
     private ulong AddRegister16ToHL(Instruction.AddRegister16ToHL inst)
     {
-        int oldValue = _registers.HL;
-        int newValue = oldValue + inst.Operand switch
-        {
-            Instruction.Register16.BC => _registers.BC,
-            Instruction.Register16.DE => _registers.DE,
-            Instruction.Register16.HL => _registers.HL,
-            Instruction.Register16.StackPointer => _registers.StackPointer,
-            _ => 0,
-        };
+        var oldValue = _registers.HL;
+        var operand = GetRegister16(inst.Operand);
+        var newValue = oldValue + operand;
 
-        _registers.Subtraction = false;
-        if (oldValue <= 0x0FFF && 0x0FFF < newValue) _registers.HalfCarry = true;
-        if (oldValue <= 0xFFFF && 0xFFFF < newValue) _registers.Carry = true;
         _registers.HL = (ushort)newValue;
+        _registers.Subtraction = false;
+        if (IsOverflowBit11(oldValue, newValue)) _registers.HalfCarry = true;
+        if (IsOverflowBit15(oldValue, newValue)) _registers.Carry = true;
 
         return 2;
     }
@@ -665,18 +589,7 @@ public class Cpu
 
     private ulong AndToA(Instruction.AndToA inst)
     {
-        byte operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
+        var operand = GetRegister8(inst.Operand);
 
         _registers.A &= operand;
         if (_registers.A == 0) _registers.Zero = true;
@@ -702,18 +615,7 @@ public class Cpu
 
     private ulong XorToA(Instruction.XorToA inst)
     {
-        byte operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
+        var operand = GetRegister8(inst.Operand);
 
         _registers.A ^= operand;
         if (_registers.A == 0) _registers.Zero = true;
@@ -739,18 +641,7 @@ public class Cpu
 
     private ulong OrToA(Instruction.OrToA inst)
     {
-        byte operand = inst.Operand switch
-        {
-            Instruction.Register8.B => _registers.B,
-            Instruction.Register8.C => _registers.C,
-            Instruction.Register8.D => _registers.D,
-            Instruction.Register8.E => _registers.E,
-            Instruction.Register8.H => _registers.H,
-            Instruction.Register8.L => _registers.L,
-            Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-            Instruction.Register8.A => _registers.A,
-            _ => 0,
-        };
+        var operand = GetRegister8(inst.Operand);
 
         _registers.A |= operand;
         if (_registers.A == 0) _registers.Zero = true;
@@ -784,15 +675,7 @@ public class Cpu
 
     private ulong ConditionalJumpRelative(Instruction.ConditionalJumpRelative inst)
     {
-        var condition = inst.Condition switch
-        {
-            Instruction.JumpCondition.NotZero => !_registers.Zero,
-            Instruction.JumpCondition.Zero => _registers.Zero,
-            Instruction.JumpCondition.NotCarry => !_registers.Carry,
-            Instruction.JumpCondition.Carry => _registers.Carry,
-            _ => false,
-        };
-
+        var condition = GetCondition(inst.Condition);
         var offset = (sbyte)FetchByte();
 
         if (condition)
@@ -811,15 +694,7 @@ public class Cpu
 
     private ulong ConditionalJump(Instruction.ConditionalJump inst)
     {
-        var condition = inst.Condition switch
-        {
-            Instruction.JumpCondition.NotZero => !_registers.Zero,
-            Instruction.JumpCondition.Zero => _registers.Zero,
-            Instruction.JumpCondition.NotCarry => !_registers.Carry,
-            Instruction.JumpCondition.Carry => _registers.Carry,
-            _ => false,
-        };
-
+        var condition = GetCondition(inst.Condition);
         var target = FetchUShort();
 
         if (condition) _registers.ProgramCounter = target;
@@ -850,14 +725,7 @@ public class Cpu
     private ulong ConditionalCall(Instruction.ConditionalCall inst)
     {
         var address = FetchUShort();
-        var condition = inst.Condition switch
-        {
-            Instruction.JumpCondition.NotZero => !_registers.Zero,
-            Instruction.JumpCondition.Zero => _registers.Zero,
-            Instruction.JumpCondition.NotCarry => !_registers.Carry,
-            Instruction.JumpCondition.Carry => _registers.Carry,
-            _ => false,
-        };
+        var condition = GetCondition(inst.Condition);
 
         if (!condition)
         {
