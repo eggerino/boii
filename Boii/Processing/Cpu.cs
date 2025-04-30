@@ -9,9 +9,11 @@ namespace Boii.Processing;
 
 public class Cpu
 {
-    public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter);
+    public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter, bool Interrupt = false);
 
     private readonly CpuRegisters _registers = CpuRegisters.Create();
+    private bool _interruptFlag = false;
+    private Action? _dispatchEnableInterruptFlag = null;
     private ulong _ticks = 0;
     private readonly IGenericIO _bus;
 
@@ -41,7 +43,8 @@ public class Cpu
         DE: _registers.DE,
         HL: _registers.HL,
         StackPointer: _registers.StackPointer,
-        ProgramCounter: _registers.ProgramCounter);
+        ProgramCounter: _registers.ProgramCounter,
+        Interrupt: _interruptFlag);
 
     public void Step()
     {
@@ -49,6 +52,9 @@ public class Cpu
 
         if (Instruction.FromOpcode(opcode) is not Instruction instruction)
             throw InvalidOpcode.Create(opcode, (ushort)(_registers.ProgramCounter - 1));
+
+        // Dispatch an enqueued enable interrupt
+        _dispatchEnableInterruptFlag?.Invoke();
 
         _ticks += Execute(instruction);
     }
@@ -156,6 +162,12 @@ public class Cpu
     private static bool IsOverflowBit15(int oldValue, int increment) => ((oldValue & 0xFFFF) + (increment & 0xFFFF)) > 0xFFFF;
 
     private static bool IsBorrowBit4(int oldValue, int decrement) => ((oldValue & 0x000F) - (decrement & 0x000F)) < 0;
+
+    private void DispatchEnableInterrupt()
+    {
+        _interruptFlag = true;
+        _dispatchEnableInterruptFlag = null;
+    }
 
     private ulong Execute(Instruction inst) => inst switch
     {
@@ -286,9 +298,18 @@ public class Cpu
     // Interrupt
     private ulong Halt(Instruction.Halt _) => throw new NotImplementedException("[TODO] Halt is currently not supported");
 
-    private ulong EnableInterrupt(Instruction.EnableInterrupt _) => throw new NotImplementedException("[TODO] EnableInterrupt is currently not supported");
+    private ulong EnableInterrupt(Instruction.EnableInterrupt _)
+    {
+        // Enqueue an enable interrupt
+        _dispatchEnableInterruptFlag = DispatchEnableInterrupt;
+        return 1;
+    }
 
-    private ulong DisableInterrupt(Instruction.DisableInterrupt _) => throw new NotImplementedException("[TODO] DisableInterrupt is currently not supported");
+    private ulong DisableInterrupt(Instruction.DisableInterrupt _)
+    {
+        _interruptFlag = false;
+        return 1;
+    }
 
     // Load
     private ulong LoadLiteral8(Instruction.LoadLiteral8 inst)
@@ -776,7 +797,12 @@ public class Cpu
         return 5;
     }
 
-    private ulong ReturnInterrupt(Instruction.ReturnInterrupt _) => throw new NotImplementedException("[TODO] ReturnInterrupt is currently not supported");
+    private ulong ReturnInterrupt(Instruction.ReturnInterrupt _)
+    {
+        DoReturn();
+        _interruptFlag = true;  // Is immediately after the return
+        return 4;
+    }
 
     private void DoReturn()
     {
@@ -874,6 +900,191 @@ public class Cpu
     // 16 Bit instructions
     private ulong Prefixed(Instruction.Prefixed _)
     {
-        throw new NotImplementedException("[TODO] Prefixed is currently not supported");
+        var nextOpcode = FetchByte();
+
+        var inst = PrefixedInstruction.FromOpcode(nextOpcode);
+
+        return ExecutePrefixed(inst);
+    }
+
+    private ulong ExecutePrefixed(PrefixedInstruction inst) => inst switch
+    {
+        // Bit shift
+        PrefixedInstruction.RotateLeft x => PrefixedRotateLeft(x),
+        PrefixedInstruction.RotateLeftThroughCarry x => PrefixedRotateLeftThroughCarry(x),
+        PrefixedInstruction.RotateRight x => PrefixedRotateRight(x),
+        PrefixedInstruction.RotateRightThroughCarry x => PrefixedRotateRightThroughCarry(x),
+        PrefixedInstruction.ShiftLeftArithmetic x => PrefixedShiftLeftArithmetic(x),
+        PrefixedInstruction.ShiftRightArithmetic x => PrefixedShiftRightArithmetic(x),
+        PrefixedInstruction.Swap x => PrefixedSwap(x),
+        PrefixedInstruction.ShiftRightLogical x => PrefixedShiftRightLogical(x),
+
+        // Bit flag
+        PrefixedInstruction.CheckBit x => PrefixedCheckBit(x),
+        PrefixedInstruction.SetBit x => PrefixedSetBit(x),
+        PrefixedInstruction.ResetBit x => PrefixedResetBit(x),
+        _ => throw new UnreachableException($"Exhaustive pattern matching. instruction {inst} not handled"),
+    };
+
+    // Bit shift
+    private ulong PrefixedRotateLeft(PrefixedInstruction.RotateLeft inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var carry = operand > 0b0111_1111;
+        operand <<= 1;
+        if (carry) operand |= 0b0000_0001;
+
+        SetRegister8(inst.Operand, operand);
+        _registers.Zero = operand == 0; ;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedRotateLeftThroughCarry(PrefixedInstruction.RotateLeftThroughCarry inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var carry = operand > 0b0111_1111;
+        operand <<= 1;
+        if (_registers.Carry) operand |= 0b0000_0001;
+
+        SetRegister8(inst.Operand, operand);
+        _registers.Zero = operand == 0;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedRotateRight(PrefixedInstruction.RotateRight inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var carry = (operand % 2) == 1;
+        operand >>= 1;
+        if (carry) operand |= 0b1000_0000;
+
+        SetRegister8(inst.Operand, operand);
+        _registers.Zero = operand == 0; ;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedRotateRightThroughCarry(PrefixedInstruction.RotateRightThroughCarry inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var carry = (operand % 2) == 1;
+        operand >>= 1;
+        if (_registers.Carry) operand |= 0b1000_0000;
+
+        SetRegister8(inst.Operand, operand);
+        _registers.Zero = operand == 0; ;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedShiftLeftArithmetic(PrefixedInstruction.ShiftLeftArithmetic inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var carry = operand > 0b0111_1111;
+        operand <<= 1;
+
+        SetRegister8(inst.Operand, operand);
+        _registers.Zero = operand == 0; ;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedShiftRightArithmetic(PrefixedInstruction.ShiftRightArithmetic inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var highBit = operand > 0b0111_1111;
+        var carry = (operand % 2) == 1;
+        operand >>= 1;
+        if (highBit) operand |= 0b1000_0000;
+
+        SetRegister8(inst.Operand, operand);
+        _registers.Zero = operand == 0; ;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedSwap(PrefixedInstruction.Swap inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var lowerNibble = operand & 0xF;
+        operand >>= 4;
+        operand |= (byte)(lowerNibble << 4);
+
+        _registers.Zero = operand == 0;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = false;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedShiftRightLogical(PrefixedInstruction.ShiftRightLogical inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var carry = (operand % 2) == 1;
+        operand >>= 1;
+
+        SetRegister8(inst.Operand, operand);
+        _registers.Zero = operand == 0; ;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    // Bit flag
+    private ulong PrefixedCheckBit(PrefixedInstruction.CheckBit inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var index = inst.Index.ToInt();
+
+        _registers.Zero = BinaryUtil.GetBit(operand, index);
+        _registers.Subtraction = false;
+        _registers.HalfCarry = true;
+
+        return inst.Operand == Register8.HLAsPointer ? 3ul : 2;
+    }
+
+    private ulong PrefixedSetBit(PrefixedInstruction.SetBit inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var index = inst.Index.ToInt();
+
+        operand = BinaryUtil.SetBit(operand, index, true);
+        SetRegister8(inst.Operand, operand);
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
+    }
+
+    private ulong PrefixedResetBit(PrefixedInstruction.ResetBit inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        var index = inst.Index.ToInt();
+
+        operand = BinaryUtil.SetBit(operand, index, false);
+        SetRegister8(inst.Operand, operand);
+
+        return inst.Operand == Register8.HLAsPointer ? 4ul : 2;
     }
 }

@@ -42,6 +42,71 @@ public class CpuTest
     }
 
     // Interrupt
+    [Fact]
+    public void EnableInterrupt()
+    {
+        var bus = Bus.From([
+            0b1111_1011,        // ei
+            0                   // nop
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        cpu.Step();
+        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(2, new(0, 0, 0, 0, 0, 0x0102, Interrupt: true), cpu);
+    }
+
+    [Fact]
+    public void DisableInterrupt()
+    {
+        var bus = Bus.From([
+            0b1111_0011         // di
+        ]);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0, 0x0100, Interrupt: true));
+
+        cpu.Step();
+        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, Interrupt: false), cpu);
+    }
+
+    [Fact]
+    public void EnableAndDisableInterrupt()
+    {
+        var bus = Bus.From([
+            0b1111_1011,        // ei
+            0b1111_0011,        // di
+            0,                  // nop
+            0,                  // nop
+            0b1111_1011,        // ei
+            0,                  // nop
+            0,                  // nop
+            0b1111_0011,        // di
+            0,                  // nop
+            0,                  // nop
+        ]);
+        var cpu = Cpu.Create(bus);
+
+        cpu.Step();
+        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(2, new(0, 0, 0, 0, 0, 0x0102, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(3, new(0, 0, 0, 0, 0, 0x0103, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(4, new(0, 0, 0, 0, 0, 0x0104, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(5, new(0, 0, 0, 0, 0, 0x0105, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(6, new(0, 0, 0, 0, 0, 0x0106, Interrupt: true), cpu);
+        cpu.Step();
+        AssertCpu(7, new(0, 0, 0, 0, 0, 0x0107, Interrupt: true), cpu);
+        cpu.Step();
+        AssertCpu(8, new(0, 0, 0, 0, 0, 0x0108, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(9, new(0, 0, 0, 0, 0, 0x0109, Interrupt: false), cpu);
+        cpu.Step();
+        AssertCpu(10, new(0, 0, 0, 0, 0, 0x010A, Interrupt: false), cpu);
+    }
 
     // Load
     [Fact]
@@ -908,6 +973,21 @@ public class CpuTest
         Step(cpu, 5);
 
         AssertCpu(15, new(0, 0, 0, 0, 0x0004, 0x0107), cpu);
+    }
+
+    [Fact]
+    public void ReturnInterrupt()
+    {
+        var bus = Bus.From([
+            0b1101_1001         // reti
+        ]);
+        bus.Write(0, 0x02);
+        bus.Write(1, 0x01);
+        var cpu = Cpu.Create(bus);
+
+        cpu.Step();
+
+        AssertCpu(4, new(0, 0, 0, 0, 2, 0x0102, Interrupt: true), cpu);
     }
 
     // Carry flag
