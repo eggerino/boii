@@ -1,14 +1,15 @@
 using System;
-using System.Linq;
+using System.Diagnostics;
 using Boii.Abstractions;
 using Boii.Errors;
+using Boii.Processing.Instructions;
 using Boii.Util;
 
 namespace Boii.Processing;
 
 public class Cpu
 {
-    public record RegisterDump(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter);
+    public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter);
 
     private readonly CpuRegisters _registers = CpuRegisters.Create();
     private ulong _ticks = 0;
@@ -18,7 +19,7 @@ public class Cpu
 
     public static Cpu Create(IGenericIO bus) => new(bus);
 
-    public static Cpu CreateWithRegisterState(IGenericIO bus, RegisterDump registerDump)
+    public static Cpu CreateWithRegisterState(IGenericIO bus, RegisterState registerDump)
     {
         var cpu = new Cpu(bus);
 
@@ -34,7 +35,7 @@ public class Cpu
 
     public ulong Ticks => _ticks;
 
-    public RegisterDump GetRegisterDump() => new(
+    public RegisterState GetRegisterState() => new(
         AF: _registers.AF,
         BC: _registers.BC,
         DE: _registers.DE,
@@ -61,164 +62,166 @@ public class Cpu
         return BinaryUtil.ToUShort(high, low);
     }
 
-    private byte GetRegister8(Instruction.Register8 register) => register switch
+    private byte GetRegister8(Register8 register) => register switch
     {
-        Instruction.Register8.B => _registers.B,
-        Instruction.Register8.C => _registers.C,
-        Instruction.Register8.D => _registers.D,
-        Instruction.Register8.E => _registers.E,
-        Instruction.Register8.H => _registers.H,
-        Instruction.Register8.L => _registers.L,
-        Instruction.Register8.HLAsPointer => _bus.Read(_registers.HL),
-        Instruction.Register8.A => _registers.A,
+        Register8.B => _registers.B,
+        Register8.C => _registers.C,
+        Register8.D => _registers.D,
+        Register8.E => _registers.E,
+        Register8.H => _registers.H,
+        Register8.L => _registers.L,
+        Register8.HLAsPointer => _bus.Read(_registers.HL),
+        Register8.A => _registers.A,
         _ => 0,
     };
 
-    private void SetRegister8(Instruction.Register8 register, byte value)
+    private void SetRegister8(Register8 register, byte value)
     {
-        if (register == Instruction.Register8.B) _registers.B = value;
-        else if (register == Instruction.Register8.C) _registers.C = value;
-        else if (register == Instruction.Register8.D) _registers.D = value;
-        else if (register == Instruction.Register8.E) _registers.E = value;
-        else if (register == Instruction.Register8.H) _registers.H = value;
-        else if (register == Instruction.Register8.L) _registers.L = value;
-        else if (register == Instruction.Register8.HLAsPointer) _bus.Write(_registers.HL, value);
-        else if (register == Instruction.Register8.A) _registers.A = value;
+        if (register == Register8.B) _registers.B = value;
+        else if (register == Register8.C) _registers.C = value;
+        else if (register == Register8.D) _registers.D = value;
+        else if (register == Register8.E) _registers.E = value;
+        else if (register == Register8.H) _registers.H = value;
+        else if (register == Register8.L) _registers.L = value;
+        else if (register == Register8.HLAsPointer) _bus.Write(_registers.HL, value);
+        else if (register == Register8.A) _registers.A = value;
     }
 
-    private ushort GetRegister16(Instruction.Register16 register) => register switch
+    private ushort GetRegister16(Register16 register) => register switch
     {
-        Instruction.Register16.BC => _registers.BC,
-        Instruction.Register16.DE => _registers.DE,
-        Instruction.Register16.HL => _registers.HL,
-        Instruction.Register16.StackPointer => _registers.StackPointer,
+        Register16.BC => _registers.BC,
+        Register16.DE => _registers.DE,
+        Register16.HL => _registers.HL,
+        Register16.StackPointer => _registers.StackPointer,
         _ => 0,
     };
 
-    private void SetRegister16(Instruction.Register16 register, ushort value)
+    private void SetRegister16(Register16 register, ushort value)
     {
-        if (register == Instruction.Register16.BC) _registers.BC = value;
-        else if (register == Instruction.Register16.DE) _registers.DE = value;
-        else if (register == Instruction.Register16.HL) _registers.HL = value;
-        else if (register == Instruction.Register16.StackPointer) _registers.StackPointer = value;
+        if (register == Register16.BC) _registers.BC = value;
+        else if (register == Register16.DE) _registers.DE = value;
+        else if (register == Register16.HL) _registers.HL = value;
+        else if (register == Register16.StackPointer) _registers.StackPointer = value;
     }
 
-    private ushort GetRegister16Stack(Instruction.Register16Stack register) => register switch
+    private ushort GetRegister16Stack(Register16Stack register) => register switch
     {
-        Instruction.Register16Stack.BC => _registers.BC,
-        Instruction.Register16Stack.DE => _registers.DE,
-        Instruction.Register16Stack.HL => _registers.HL,
-        Instruction.Register16Stack.AF => _registers.AF,
+        Register16Stack.BC => _registers.BC,
+        Register16Stack.DE => _registers.DE,
+        Register16Stack.HL => _registers.HL,
+        Register16Stack.AF => _registers.AF,
         _ => 0,
     };
 
-    private void SetRegister16Stack(Instruction.Register16Stack register, ushort value)
+    private void SetRegister16Stack(Register16Stack register, ushort value)
     {
-        if (register == Instruction.Register16Stack.BC) _registers.BC = value;
-        else if (register == Instruction.Register16Stack.DE) _registers.DE = value;
-        else if (register == Instruction.Register16Stack.HL) _registers.HL = value;
-        else if (register == Instruction.Register16Stack.AF) _registers.AF = value;
+        if (register == Register16Stack.BC) _registers.BC = value;
+        else if (register == Register16Stack.DE) _registers.DE = value;
+        else if (register == Register16Stack.HL) _registers.HL = value;
+        else if (register == Register16Stack.AF) _registers.AF = value;
     }
 
-    private byte ReadFromRegister16Memory(Instruction.Register16Memory register) => register switch
+    private byte ReadFromRegister16Memory(Register16Memory register) => register switch
     {
-        Instruction.Register16Memory.BC => _bus.Read(_registers.BC),
-        Instruction.Register16Memory.DE => _bus.Read(_registers.DE),
-        Instruction.Register16Memory.HLInc => _bus.Read(_registers.HL++),
-        Instruction.Register16Memory.HLDec => _bus.Read(_registers.HL--),
+        Register16Memory.BC => _bus.Read(_registers.BC),
+        Register16Memory.DE => _bus.Read(_registers.DE),
+        Register16Memory.HLInc => _bus.Read(_registers.HL++),
+        Register16Memory.HLDec => _bus.Read(_registers.HL--),
         _ => 0,
     };
 
-    private void WriteToRegister16Memory(Instruction.Register16Memory register, byte value)
+    private void WriteToRegister16Memory(Register16Memory register, byte value)
     {
-        if (register == Instruction.Register16Memory.BC) _bus.Write(_registers.BC, value);
-        else if (register == Instruction.Register16Memory.DE) _bus.Write(_registers.DE, value);
-        else if (register == Instruction.Register16Memory.HLInc) _bus.Write(_registers.HL++, value);
-        else if (register == Instruction.Register16Memory.HLDec) _bus.Write(_registers.HL--, value);
+        if (register == Register16Memory.BC) _bus.Write(_registers.BC, value);
+        else if (register == Register16Memory.DE) _bus.Write(_registers.DE, value);
+        else if (register == Register16Memory.HLInc) _bus.Write(_registers.HL++, value);
+        else if (register == Register16Memory.HLDec) _bus.Write(_registers.HL--, value);
     }
 
-    private bool GetCondition(Instruction.JumpCondition condition) => condition switch
+    private bool GetCondition(Condition condition) => condition switch
     {
-        Instruction.JumpCondition.NotZero => !_registers.Zero,
-        Instruction.JumpCondition.Zero => _registers.Zero,
-        Instruction.JumpCondition.NotCarry => !_registers.Carry,
-        Instruction.JumpCondition.Carry => _registers.Carry,
+        Condition.NotZero => !_registers.Zero,
+        Condition.Zero => _registers.Zero,
+        Condition.NotCarry => !_registers.Carry,
+        Condition.Carry => _registers.Carry,
         _ => false,
     };
 
-    private bool IsOverflowBit3(int oldValue, int newValue) => oldValue <= 0x000F && newValue > 0x000F;
+    private static bool IsOverflowBit3(int oldValue, int increment) => ((oldValue & 0x000F) + (increment & 0x000F)) > 0x000F;
 
-    private bool IsOverflowBit7(int oldValue, int newValue) => oldValue <= 0x00FF && newValue > 0x00FF;
+    private static bool IsOverflowBit7(int oldValue, int increment) => ((oldValue & 0x00FF) + (increment & 0x00FF)) > 0x00FF;
 
-    private bool IsOverflowBit11(int oldValue, int newValue) => oldValue <= 0x0FFF && newValue > 0x0FFF;
+    private static bool IsOverflowBit11(int oldValue, int increment) => ((oldValue & 0x0FFF) + (increment & 0x0FFF)) > 0x0FFF;
 
-    private bool IsOverflowBit15(int oldValue, int newValue) => oldValue <= 0xFFFF && newValue > 0xFFFF;
+    private static bool IsOverflowBit15(int oldValue, int increment) => ((oldValue & 0xFFFF) + (increment & 0xFFFF)) > 0xFFFF;
 
-    private bool IsBorrowBit4(int oldValue, int decrement) => (oldValue & 0xF) < (decrement & 0xF);
+    private static bool IsBorrowBit4(int oldValue, int decrement) => ((oldValue & 0x000F) - (decrement & 0x000F)) < 0;
 
     private ulong Execute(Instruction inst) => inst switch
     {
+        // Misc
         Instruction.Nop x => Nop(x),
         Instruction.Stop x => Stop(x),
+        Instruction.DecimalAdjustA x => DecimalAdjustA(x),
+
+        // Interrupt
         Instruction.Halt x => Halt(x),
         Instruction.EnableInterrupt x => EnableInterrupt(x),
         Instruction.DisableInterrupt x => DisableInterrupt(x),
 
-        Instruction.LoadImm8 x => LoadImm8(x),
-        Instruction.LoadRegister8ToRegister8 x => LoadRegister8ToRegister8(x),
-        Instruction.LoadImm16 x => LoadImm16(x),
+        // Load
+        Instruction.LoadLiteral8 x => LoadLiteral8(x),
+        Instruction.LoadRegister8 x => LoadRegister8(x),
+        Instruction.LoadLiteral16 x => LoadLiteral16(x),
         Instruction.LoadFromA x => LoadFromA(x),
-        Instruction.LoadIntoA x => LoadIntoA(x),
-        Instruction.LoadFromStackPointer x => LoadFromStackPointer(x),
+        Instruction.LoadFromAIntoLiteral16Pointer x => LoadFromAIntoLiteral16Pointer(x),
+        Instruction.LoadFromAIntoLiteral8HighPointer x => LoadFromAIntoLiteral8HighPointer(x),
         Instruction.LoadFromAIntoCHighPointer x => LoadFromAIntoCHighPointer(x),
-        Instruction.LoadFromAIntoImm8HighPointer x => LoadFromAIntoImm8HighPointer(x),
-        Instruction.LoadFromAIntoImm16Pointer x => LoadFromAIntoImm16Pointer(x),
+        Instruction.LoadIntoA x => LoadIntoA(x),
+        Instruction.LoadFromLiteral16PointerIntoA x => LoadFromLiteral16PointerIntoA(x),
+        Instruction.LoadFromLiteral8HighPointerIntoA x => LoadFromLiteral8HighPointerIntoA(x),
         Instruction.LoadFromCHighPointerIntoA x => LoadFromCHighPointerIntoA(x),
-        Instruction.LoadFromImm8HighPointerIntoA x => LoadFromImm8HighPointerIntoA(x),
-        Instruction.LoadFromImm16PointerIntoA x => LoadFromImm16PointerIntoA(x),
 
+        // 8 Bit arithmetic
         Instruction.IncrementRegister8 x => IncrementRegister8(x),
         Instruction.DecrementRegister8 x => DecrementRegister8(x),
-
         Instruction.AddToA x => AddToA(x),
-        Instruction.AddToAImm8 x => AddToAImm8(x),
+        Instruction.AddLiteral8ToA x => AddLiteral8ToA(x),
         Instruction.AddToACarry x => AddToACarry(x),
-        Instruction.AddToAImm8Carry x => AddToAImm8Carry(x),
-        Instruction.SubtractToA x => SubtractToA(x),
-        Instruction.SubtractToAImm8 x => SubtractToAImm8(x),
-        Instruction.SubtractToACarry x => SubtractToACarry(x),
-        Instruction.SubtractToAImm8Carry x => SubtractToAImm8Carry(x),
+        Instruction.AddLiteral8ToACarry x => AddLiteral8ToACarry(x),
+        Instruction.SubtractFromA x => SubtractFromA(x),
+        Instruction.SubtractLiteral8FromA x => SubtractLiteral8FromA(x),
+        Instruction.SubtractFromACarry x => SubtractFromACarry(x),
+        Instruction.SubtractLiteral8FromACarry x => SubtractLiteral8FromACarry(x),
         Instruction.CompareToA x => CompareToA(x),
-        Instruction.CompareToAImm8 x => CompareToAImm8(x),
+        Instruction.CompareLiteral8ToA x => CompareLiteral8ToA(x),
 
+        // 16 Bit arithmetic
         Instruction.IncrementRegister16 x => IncrementRegister16(x),
         Instruction.DecrementRegister16 x => DecrementRegister16(x),
         Instruction.AddRegister16ToHL x => AddRegister16ToHL(x),
 
+        // Bitwise logic
+        Instruction.ComplementA x => ComplementA(x),
+        Instruction.AndWithA x => AndWithA(x),
+        Instruction.AndLiteral8WithA x => AndLiteral8WithA(x),
+        Instruction.XorWithA x => XorWithA(x),
+        Instruction.XorLiteral8WithA x => XorLiteral8WithA(x),
+        Instruction.OrWithA x => OrWithA(x),
+        Instruction.OrLiteral8WithA x => OrLiteral8WithA(x),
+
+        // Bit shift
         Instruction.RotateLeftA x => RotateLeftA(x),
-        Instruction.RotateRightA x => RotateRightA(x),
         Instruction.RotateLeftCarryA x => RotateLeftCarryA(x),
+        Instruction.RotateRightA x => RotateRightA(x),
         Instruction.RotateRightCarryA x => RotateRightCarryA(x),
 
-        Instruction.DecimalAdjustAccumulator x => DecimalAdjustAccumulator(x),
-        Instruction.ComplementAccumulator x => ComplementAccumulator(x),
-
-        Instruction.SetCarryFlag x => SetCarryFlag(x),
-        Instruction.ComplementCarryFlag x => ComplementCarryFlag(x),
-
-        Instruction.AndToA x => AndToA(x),
-        Instruction.AndToAImm8 x => AndToAImm8(x),
-        Instruction.XorToA x => XorToA(x),
-        Instruction.XorToAImm8 x => XorToAImm8(x),
-        Instruction.OrToA x => OrToA(x),
-        Instruction.OrToAImm8 x => OrToAImm8(x),
-
+        // Jump and subroutine
         Instruction.JumpRelative x => JumpRelative(x),
         Instruction.ConditionalJumpRelative x => ConditionalJumpRelative(x),
         Instruction.Jump x => Jump(x),
         Instruction.ConditionalJump x => ConditionalJump(x),
         Instruction.JumpHL x => JumpHL(x),
-
         Instruction.Call x => Call(x),
         Instruction.ConditionalCall x => ConditionalCall(x),
         Instruction.Restart x => Restart(x),
@@ -226,54 +229,83 @@ public class Cpu
         Instruction.ConditionalReturn x => ConditionalReturn(x),
         Instruction.ReturnInterrupt x => ReturnInterrupt(x),
 
+        // Carry flag
+        Instruction.SetCarryFlag x => SetCarryFlag(x),
+        Instruction.ComplementCarryFlag x => ComplementCarryFlag(x),
+
+        // Stack manipulation
         Instruction.Push x => Push(x),
         Instruction.Pop x => Pop(x),
-        Instruction.AddToStackPointerImm8 x => AddToStackPointerImm8(x),
-        Instruction.LoadStackPointerPlusImm8IntoHL x => LoadStackPointerPlusImm8IntoHL(x),
+        Instruction.AddSignedLiteral8ToStackPointer x => AddSignedLiteral8ToStackPointer(x),
+        Instruction.LoadFromStackPointerIntoLiteral16Pointer x => LoadFromStackPointerIntoLiteral16Pointer(x),
+        Instruction.LoadFromStackPointerPlusSignedLiteral8IntoHL x => LoadFromStackPointerPlusSignedLiteral8IntoHL(x),
         Instruction.LoadFromHLIntoStackPointer x => LoadFromHLIntoStackPointer(x),
 
-        _ => throw new NotImplementedException($"instruction {inst} not implemented in cpu"),
+        // 16 Bit instructions
+        Instruction.Prefixed x => Prefixed(x),
+
+        _ => throw new UnreachableException($"Exhaustive pattern matching. instruction {inst} not handled"),
     };
 
+    // Misc
     private ulong Nop(Instruction.Nop _) => 1;
 
-    private ulong Stop(Instruction.Stop _)
+    private ulong Stop(Instruction.Stop _) => throw new NotImplementedException("[TODO] Stop is currently not supported");
+
+    private ulong DecimalAdjustA(Instruction.DecimalAdjustA _)
     {
-        throw new NotImplementedException("[TODO] Stop is currently not supported");
+        var a = _registers.A;
+        var carry = false;
+        byte adjustment = 0;
+
+        if (_registers.Subtraction)
+        {
+            if (_registers.HalfCarry) adjustment += 0x06;
+            if (_registers.Carry) adjustment += 0x60;
+            a -= adjustment;
+        }
+        else
+        {
+            if (_registers.HalfCarry || (a & 0x0F) > 0x09) adjustment += 0x06;
+            if (_registers.Carry || a > 0x99)
+            {
+                adjustment += 0x60;
+                carry = true;
+            }
+            a += adjustment;
+        }
+
+        _registers.A = a;
+        _registers.Zero = a == 0;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return 1;
     }
 
-    private ulong Halt(Instruction.Halt _)
-    {
-        throw new NotImplementedException("[TODO] Halt is currently not supported");
-    }
+    // Interrupt
+    private ulong Halt(Instruction.Halt _) => throw new NotImplementedException("[TODO] Halt is currently not supported");
 
-    private ulong EnableInterrupt(Instruction.EnableInterrupt _)
-    {
-        throw new NotImplementedException("[TODO] EnableInterrupt is currently not supported");
-    }
+    private ulong EnableInterrupt(Instruction.EnableInterrupt _) => throw new NotImplementedException("[TODO] EnableInterrupt is currently not supported");
 
-    private ulong DisableInterrupt(Instruction.DisableInterrupt _)
-    {
-        throw new NotImplementedException("[TODO] DisableInterrupt is currently not supported");
-    }
+    private ulong DisableInterrupt(Instruction.DisableInterrupt _) => throw new NotImplementedException("[TODO] DisableInterrupt is currently not supported");
 
-    private ulong LoadImm8(Instruction.LoadImm8 inst)
+    // Load
+    private ulong LoadLiteral8(Instruction.LoadLiteral8 inst)
     {
         var value = FetchByte();
         SetRegister8(inst.Destination, value);
-        return inst.Destination == Instruction.Register8.HLAsPointer ? 3ul : 2ul;
+        return inst.Destination == Register8.HLAsPointer ? 3ul : 2ul;
     }
 
-    private ulong LoadRegister8ToRegister8(Instruction.LoadRegister8ToRegister8 inst)
+    private ulong LoadRegister8(Instruction.LoadRegister8 inst)
     {
         var value = GetRegister8(inst.Source);
         SetRegister8(inst.Destination, value);
-        return Enumerable.Any([inst.Source, inst.Destination], x => x == Instruction.Register8.HLAsPointer)
-            ? 2ul
-            : 1;
+        return inst.Source == Register8.HLAsPointer || inst.Destination == Register8.HLAsPointer ? 2ul : 1;
     }
 
-    private ulong LoadImm16(Instruction.LoadImm16 inst)
+    private ulong LoadLiteral16(Instruction.LoadLiteral16 inst)
     {
         var value = FetchUShort();
         SetRegister16(inst.Destination, value);
@@ -287,21 +319,18 @@ public class Cpu
         return 2;
     }
 
-    private ulong LoadIntoA(Instruction.LoadIntoA inst)
+    private ulong LoadFromAIntoLiteral16Pointer(Instruction.LoadFromAIntoLiteral16Pointer _)
     {
-        var value = ReadFromRegister16Memory(inst.Source);
-        _registers.A = value;
-        return 2;
+        var address = FetchUShort();
+        _bus.Write(address, _registers.A);
+        return 4;
     }
 
-    private ulong LoadFromStackPointer(Instruction.LoadFromStackPointer _)
+    private ulong LoadFromAIntoLiteral8HighPointer(Instruction.LoadFromAIntoLiteral8HighPointer _)
     {
-        var destination = FetchUShort();
-
-        _bus.Write(destination++, (byte)_registers.StackPointer);
-        _bus.Write(destination, (byte)(_registers.StackPointer >> 8));
-
-        return 5;
+        var address = (ushort)(0xFF00 + FetchByte());
+        _bus.Write(address, _registers.A);
+        return 3;
     }
 
     private ulong LoadFromAIntoCHighPointer(Instruction.LoadFromAIntoCHighPointer _)
@@ -311,18 +340,25 @@ public class Cpu
         return 2;
     }
 
-    private ulong LoadFromAIntoImm8HighPointer(Instruction.LoadFromAIntoImm8HighPointer _)
+    private ulong LoadIntoA(Instruction.LoadIntoA inst)
     {
-        var address = (ushort)(0xFF00 + FetchByte());
-        _bus.Write(address, _registers.A);
-        return 3;
+        var value = ReadFromRegister16Memory(inst.Source);
+        _registers.A = value;
+        return 2;
     }
 
-    private ulong LoadFromAIntoImm16Pointer(Instruction.LoadFromAIntoImm16Pointer _)
+    private ulong LoadFromLiteral16PointerIntoA(Instruction.LoadFromLiteral16PointerIntoA _)
     {
         var address = FetchUShort();
-        _bus.Write(address, _registers.A);
+        _registers.A = _bus.Read(address);
         return 4;
+    }
+
+    private ulong LoadFromLiteral8HighPointerIntoA(Instruction.LoadFromLiteral8HighPointerIntoA _)
+    {
+        var address = (ushort)(0xFF00 + FetchByte());
+        _registers.A = _bus.Read(address);
+        return 3;
     }
 
     private ulong LoadFromCHighPointerIntoA(Instruction.LoadFromCHighPointerIntoA _)
@@ -332,31 +368,18 @@ public class Cpu
         return 2;
     }
 
-    private ulong LoadFromImm8HighPointerIntoA(Instruction.LoadFromImm8HighPointerIntoA _)
-    {
-        var address = (ushort)(0xFF00 + FetchByte());
-        _registers.A = _bus.Read(address);
-        return 3;
-    }
-
-    private ulong LoadFromImm16PointerIntoA(Instruction.LoadFromImm16PointerIntoA _)
-    {
-        var address = FetchUShort();
-        _registers.A = _bus.Read(address);
-        return 4;
-    }
-
+    // 8 Bit arithmetic
     private ulong IncrementRegister8(Instruction.IncrementRegister8 inst)
     {
         int value = GetRegister8(inst.Operand);
         value++;
         SetRegister8(inst.Operand, (byte)value);
 
-        if ((byte)value == 0) _registers.Zero = true;
+        _registers.Zero = ((byte)value) == 0;
         _registers.Subtraction = false;
-        if (IsOverflowBit3(value - 1, value)) _registers.HalfCarry = true;
+        _registers.HalfCarry = IsOverflowBit3(value - 1, 1);
 
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 3ul : 1ul;
+        return inst.Operand == Register8.HLAsPointer ? 3ul : 1ul;
     }
 
     private ulong DecrementRegister8(Instruction.DecrementRegister8 inst)
@@ -365,164 +388,125 @@ public class Cpu
         value--;
         SetRegister8(inst.Operand, (byte)value);
 
-        if ((byte)value == 0) _registers.Zero = true;
+        _registers.Zero = ((byte)value) == 0;
         _registers.Subtraction = true;
-        if (IsBorrowBit4(value + 1, 1)) _registers.HalfCarry = true;
+        _registers.HalfCarry = IsBorrowBit4(value + 1, 1);
 
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 3ul : 1ul;
+        return inst.Operand == Register8.HLAsPointer ? 3ul : 1ul;
     }
 
     private ulong AddToA(Instruction.AddToA inst)
     {
-        var oldValue = _registers.A;
         var operand = GetRegister8(inst.Operand);
-        var newValue = oldValue + operand;
-
-        _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
-        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+        DoAddA(operand, false);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
     }
 
-    private ulong AddToAImm8(Instruction.AddToAImm8 _)
+    private ulong AddLiteral8ToA(Instruction.AddLiteral8ToA _)
     {
         var operand = FetchByte();
-        var oldValue = _registers.A;
-        var newValue = oldValue + operand;
-
-        _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
-        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
-
+        DoAddA(operand, false);
         return 2;
     }
 
     private ulong AddToACarry(Instruction.AddToACarry inst)
     {
-        var oldValue = _registers.A;
         var operand = GetRegister8(inst.Operand);
-        var newValue = oldValue + operand;
-        if (_registers.Carry) newValue++;
-
-        _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
-        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+        DoAddA(operand, _registers.Carry);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
     }
 
-    private ulong AddToAImm8Carry(Instruction.AddToAImm8Carry _)
+    private ulong AddLiteral8ToACarry(Instruction.AddLiteral8ToACarry _)
     {
         var operand = FetchByte();
+        DoAddA(operand, _registers.Carry);
+        return 2;
+    }
+
+    private void DoAddA(byte increment, bool carry)
+    {
+        int operand = increment;
+        if (carry) operand++;
+
         var oldValue = _registers.A;
         var newValue = oldValue + operand;
-        if (_registers.Carry) newValue++;
 
         _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
+        _registers.Zero = ((byte)newValue) == 0;
         _registers.Subtraction = false;
-        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
-        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
-
-        return 2;
+        _registers.HalfCarry = IsOverflowBit3(oldValue, operand);
+        _registers.Carry = IsOverflowBit7(oldValue, operand);
     }
 
-    private ulong SubtractToA(Instruction.SubtractToA inst)
+    private ulong SubtractFromA(Instruction.SubtractFromA inst)
     {
-        var oldValue = _registers.A;
         var operand = GetRegister8(inst.Operand);
-        var newValue = oldValue - operand;
-
-        _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
-        _registers.Subtraction = true;
-        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
-        if (operand > oldValue) _registers.Carry = true;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+        DoSubtractA(operand, false);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
     }
 
-    private ulong SubtractToAImm8(Instruction.SubtractToAImm8 _)
+    private ulong SubtractLiteral8FromA(Instruction.SubtractLiteral8FromA _)
     {
         var operand = FetchByte();
-        var oldValue = _registers.A;
-
-        var newValue = oldValue - operand;
-
-        _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
-        _registers.Subtraction = true;
-        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
-        if (operand > oldValue) _registers.Carry = true;
-
+        DoSubtractA(operand, false);
         return 2;
     }
 
-    private ulong SubtractToACarry(Instruction.SubtractToACarry inst)
+    private ulong SubtractFromACarry(Instruction.SubtractFromACarry inst)
     {
-        var oldValue = _registers.A;
-        int operand = GetRegister8(inst.Operand);
-        if (_registers.Carry) operand++;
-        var newValue = oldValue - operand;
-
-        _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
-        _registers.Subtraction = true;
-        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
-        if (operand > oldValue) _registers.Carry = true;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+        var operand = GetRegister8(inst.Operand);
+        DoSubtractA(operand, _registers.Carry);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
     }
 
-    private ulong SubtractToAImm8Carry(Instruction.SubtractToAImm8Carry _)
+    private ulong SubtractLiteral8FromACarry(Instruction.SubtractLiteral8FromACarry _)
     {
-        int operand = FetchByte();
+        var operand = FetchByte();
+        DoSubtractA(operand, _registers.Carry);
+        return 2;
+    }
+
+    private void DoSubtractA(byte decrement, bool carry)
+    {
+        int operand = decrement;
+        if (carry) operand++;
+
         var oldValue = _registers.A;
-        if (_registers.Carry) operand++;
         var newValue = oldValue - operand;
 
         _registers.A = (byte)newValue;
-        if ((byte)newValue == 0) _registers.Zero = true;
+        _registers.Zero = ((byte)newValue) == 0;
         _registers.Subtraction = true;
-        if (IsBorrowBit4(oldValue, operand)) _registers.HalfCarry = true;
-        if (operand > oldValue) _registers.Carry = true;
-
-        return 2;
+        _registers.HalfCarry = IsBorrowBit4(oldValue, operand);
+        _registers.Carry = operand > oldValue;
     }
 
     private ulong CompareToA(Instruction.CompareToA inst)
     {
-        var a = _registers.A;
         var operand = GetRegister8(inst.Operand);
-
-        if (a == operand) _registers.Zero = true;
-        _registers.Subtraction = true;
-        if ((operand & 0b0000_1111) > (a & 0b0000_1111)) _registers.HalfCarry = true;
-        if (operand > a) _registers.Carry = true;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
+        DoCompareA(operand);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
     }
 
-    private ulong CompareToAImm8(Instruction.CompareToAImm8 _)
+    private ulong CompareLiteral8ToA(Instruction.CompareLiteral8ToA _)
     {
-        var a = _registers.A;
         var operand = FetchByte();
-
-        if (a == operand) _registers.Zero = true;
-        _registers.Subtraction = true;
-        if ((operand & 0b0000_1111) > (a & 0b0000_1111)) _registers.HalfCarry = true;
-        if (operand > a) _registers.Carry = true;
-
+        DoCompareA(operand);
         return 2;
     }
 
+    private void DoCompareA(byte operand)
+    {
+        var a = _registers.A;
+        var checkValue = a - operand;
+
+        _registers.Zero = ((byte)checkValue) == 0;
+        _registers.Subtraction = true;
+        _registers.HalfCarry = IsBorrowBit4(a, operand);
+        _registers.Carry = operand > a;
+    }
+
+    // 16 Bit arithmetic
     private ulong IncrementRegister16(Instruction.IncrementRegister16 inst)
     {
         var value = GetRegister16(inst.Operand);
@@ -547,34 +531,98 @@ public class Cpu
 
         _registers.HL = (ushort)newValue;
         _registers.Subtraction = false;
-        if (IsOverflowBit11(oldValue, newValue)) _registers.HalfCarry = true;
-        if (IsOverflowBit15(oldValue, newValue)) _registers.Carry = true;
+        _registers.HalfCarry = IsOverflowBit11(oldValue, operand);
+        _registers.Carry = IsOverflowBit15(oldValue, operand);
 
         return 2;
     }
 
+    // Bitwise logic
+    private ulong ComplementA(Instruction.ComplementA _)
+    {
+        _registers.A = (byte)~_registers.A;
+        _registers.Subtraction = true;
+        _registers.HalfCarry = true;
+
+        return 1;
+    }
+
+    private ulong AndWithA(Instruction.AndWithA inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        DoAndA(operand);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong AndLiteral8WithA(Instruction.AndLiteral8WithA _)
+    {
+        var operand = FetchByte();
+        DoAndA(operand);
+        return 2;
+    }
+
+    private void DoAndA(byte operand)
+    {
+        _registers.A &= operand;
+        _registers.Zero = _registers.A == 0;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = true;
+        _registers.Carry = false;
+    }
+
+    private ulong XorWithA(Instruction.XorWithA inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        DoXorA(operand);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong XorLiteral8WithA(Instruction.XorLiteral8WithA _)
+    {
+        var operand = FetchByte();
+        DoXorA(operand);
+        return 2;
+    }
+
+    private void DoXorA(byte operand)
+    {
+        _registers.A ^= operand;
+        _registers.Zero = _registers.A == 0;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = false;
+    }
+
+    private ulong OrWithA(Instruction.OrWithA inst)
+    {
+        var operand = GetRegister8(inst.Operand);
+        DoOrA(operand);
+        return inst.Operand == Register8.HLAsPointer ? 2ul : 1;
+    }
+
+    private ulong OrLiteral8WithA(Instruction.OrLiteral8WithA _)
+    {
+        var operand = FetchByte();
+        DoOrA(operand);
+        return 2;
+    }
+
+    private void DoOrA(byte operand)
+    {
+        _registers.A |= operand;
+        _registers.Zero = _registers.A == 0;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = false;
+    }
+
+    // Bit shift
     private ulong RotateLeftA(Instruction.RotateLeftA _)
     {
         byte a = _registers.A;
         var carry = a > 0b0111_1111;
         a <<= 1;
         if (carry) a |= 0b0000_0001;
-
-        _registers.A = a;
-        _registers.Zero = false;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = false;
-        _registers.Carry = carry;
-
-        return 1;
-    }
-
-    private ulong RotateRightA(Instruction.RotateRightA _)
-    {
-        byte a = _registers.A;
-        var carry = (a % 2) == 1;
-        a >>= 1;
-        if (carry) a |= 0b1000_0000;
 
         _registers.A = a;
         _registers.Zero = false;
@@ -601,6 +649,22 @@ public class Cpu
         return 1;
     }
 
+    private ulong RotateRightA(Instruction.RotateRightA _)
+    {
+        byte a = _registers.A;
+        var carry = (a % 2) == 1;
+        a >>= 1;
+        if (carry) a |= 0b1000_0000;
+
+        _registers.A = a;
+        _registers.Zero = false;
+        _registers.Subtraction = false;
+        _registers.HalfCarry = false;
+        _registers.Carry = carry;
+
+        return 1;
+    }
+
     private ulong RotateRightCarryA(Instruction.RotateRightCarryA _)
     {
         byte a = _registers.A;
@@ -617,43 +681,113 @@ public class Cpu
         return 1;
     }
 
-    private ulong DecimalAdjustAccumulator(Instruction.DecimalAdjustAccumulator _)
+    // Jump and subroutine
+    private ulong JumpRelative(Instruction.JumpRelative _)
     {
-        var a = _registers.A;
-        var carry = false;
+        var offset = (sbyte)FetchByte();
+        _registers.ProgramCounter = (ushort)(_registers.ProgramCounter + offset);
 
-        if (_registers.Subtraction)
-        {
-            if (_registers.HalfCarry) a -= 0x06;
-            if (_registers.Carry) a -= 0x60;
-        }
-        else
-        {
-            if (_registers.HalfCarry || (a & 0x0F) > 0x09) a += 0x06;
-            if (_registers.Carry || a > 0x99)
-            {
-                a += 0x60;
-                carry = true;
-            }
-        }
+        return 3;
+    }
 
-        _registers.A = a;
-        if (a == 0) _registers.Zero = true;
-        _registers.HalfCarry = false;
-        _registers.Carry = carry;
+    private ulong ConditionalJumpRelative(Instruction.ConditionalJumpRelative inst)
+    {
+        var condition = GetCondition(inst.Condition);
+        var offset = (sbyte)FetchByte();
 
+        if (condition)
+            _registers.ProgramCounter = (ushort)(_registers.ProgramCounter + offset);
+
+        return condition ? 3ul : 2;
+    }
+
+    private ulong Jump(Instruction.Jump _)
+    {
+        _registers.ProgramCounter = FetchUShort();
+        return 4;
+    }
+
+    private ulong ConditionalJump(Instruction.ConditionalJump inst)
+    {
+        var condition = GetCondition(inst.Condition);
+        var target = FetchUShort();
+
+        if (condition)
+            _registers.ProgramCounter = target;
+
+        return condition ? 4ul : 3;
+    }
+
+    private ulong JumpHL(Instruction.JumpHL _)
+    {
+        _registers.ProgramCounter = _registers.HL;
         return 1;
     }
 
-    private ulong ComplementAccumulator(Instruction.ComplementAccumulator _)
+    private ulong Call(Instruction.Call _)
     {
-        _registers.A = (byte)~_registers.A;
-        _registers.Subtraction = true;
-        _registers.HalfCarry = true;
-
-        return 1;
+        var address = FetchUShort();
+        DoCall(address);
+        return 6;
     }
 
+    private ulong ConditionalCall(Instruction.ConditionalCall inst)
+    {
+        var address = FetchUShort();
+        var condition = GetCondition(inst.Condition);
+
+        if (!condition)
+            return 3;
+
+        DoCall(address);
+        return 6;
+    }
+
+    private ulong Restart(Instruction.Restart inst)
+    {
+        var address = inst.Target.ToInt() * 8;
+        DoCall((ushort)address);
+        return 4;
+    }
+
+    private void DoCall(ushort address)
+    {
+        var returnAddress = _registers.ProgramCounter;
+        var (high, low) = BinaryUtil.ToBytes(returnAddress);
+        _bus.Write(--_registers.StackPointer, high);
+        _bus.Write(--_registers.StackPointer, low);
+
+        _registers.ProgramCounter = address;
+    }
+
+    private ulong Return(Instruction.Return _)
+    {
+        DoReturn();
+        return 4;
+    }
+
+    private ulong ConditionalReturn(Instruction.ConditionalReturn inst)
+    {
+        var condition = GetCondition(inst.Condition);
+        if (!condition)
+            return 2;
+
+        DoReturn();
+        return 5;
+    }
+
+    private ulong ReturnInterrupt(Instruction.ReturnInterrupt _) => throw new NotImplementedException("[TODO] ReturnInterrupt is currently not supported");
+
+    private void DoReturn()
+    {
+        var low = _bus.Read(_registers.StackPointer++);
+        var high = _bus.Read(_registers.StackPointer++);
+        var returnAddress = BinaryUtil.ToUShort(high, low);
+
+        _registers.ProgramCounter = returnAddress;
+    }
+
+    // Carry flag
     private ulong SetCarryFlag(Instruction.SetCarryFlag _)
     {
         _registers.Subtraction = false;
@@ -672,208 +806,7 @@ public class Cpu
         return 1;
     }
 
-    private ulong AndToA(Instruction.AndToA inst)
-    {
-        var operand = GetRegister8(inst.Operand);
-
-        _registers.A &= operand;
-        if (_registers.A == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = true;
-        _registers.Carry = false;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
-    }
-
-    private ulong AndToAImm8(Instruction.AndToAImm8 _)
-    {
-        byte operand = FetchByte();
-
-        _registers.A &= operand;
-        if (_registers.A == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = true;
-        _registers.Carry = false;
-
-        return 2;
-    }
-
-    private ulong XorToA(Instruction.XorToA inst)
-    {
-        var operand = GetRegister8(inst.Operand);
-
-        _registers.A ^= operand;
-        if (_registers.A == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = false;
-        _registers.Carry = false;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
-    }
-
-    private ulong XorToAImm8(Instruction.XorToAImm8 _)
-    {
-        byte operand = FetchByte();
-
-        _registers.A ^= operand;
-        if (_registers.A == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = false;
-        _registers.Carry = false;
-
-        return 2;
-    }
-
-    private ulong OrToA(Instruction.OrToA inst)
-    {
-        var operand = GetRegister8(inst.Operand);
-
-        _registers.A |= operand;
-        if (_registers.A == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = false;
-        _registers.Carry = false;
-
-        return inst.Operand == Instruction.Register8.HLAsPointer ? 2ul : 1;
-    }
-
-    private ulong OrToAImm8(Instruction.OrToAImm8 _)
-    {
-        byte operand = FetchByte();
-
-        _registers.A |= operand;
-        if (_registers.A == 0) _registers.Zero = true;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = false;
-        _registers.Carry = false;
-
-        return 2;
-    }
-
-    private ulong JumpRelative(Instruction.JumpRelative _)
-    {
-        var offset = (sbyte)FetchByte();
-        _registers.ProgramCounter = (ushort)(_registers.ProgramCounter + offset);
-
-        return 3;
-    }
-
-    private ulong ConditionalJumpRelative(Instruction.ConditionalJumpRelative inst)
-    {
-        var condition = GetCondition(inst.Condition);
-        var offset = (sbyte)FetchByte();
-
-        if (condition)
-        {
-            _registers.ProgramCounter = (ushort)(_registers.ProgramCounter + offset);
-        }
-
-        return condition ? 3ul : 2;
-    }
-
-    private ulong Jump(Instruction.Jump _)
-    {
-        _registers.ProgramCounter = FetchUShort();
-        return 4;
-    }
-
-    private ulong ConditionalJump(Instruction.ConditionalJump inst)
-    {
-        var condition = GetCondition(inst.Condition);
-        var target = FetchUShort();
-
-        if (condition) _registers.ProgramCounter = target;
-
-        return condition ? 4ul : 3;
-    }
-
-    private ulong JumpHL(Instruction.JumpHL _)
-    {
-        _registers.ProgramCounter = _registers.HL;
-        return 1;
-    }
-
-    private ulong Call(Instruction.Call _)
-    {
-        var address = FetchUShort();
-
-        var returnAddress = _registers.ProgramCounter;
-        var (high, low) = BinaryUtil.ToBytes(returnAddress);
-        _bus.Write(--_registers.StackPointer, high);
-        _bus.Write(--_registers.StackPointer, low);
-
-        _registers.ProgramCounter = address;
-
-        return 6;
-    }
-
-    private ulong ConditionalCall(Instruction.ConditionalCall inst)
-    {
-        var address = FetchUShort();
-        var condition = GetCondition(inst.Condition);
-
-        if (!condition)
-        {
-            return 3;
-        }
-
-        var returnAddress = _registers.ProgramCounter;
-        var (high, low) = BinaryUtil.ToBytes(returnAddress);
-        _bus.Write(--_registers.StackPointer, high);
-        _bus.Write(--_registers.StackPointer, low);
-
-        _registers.ProgramCounter = address;
-
-        return 6;
-    }
-
-    private ulong Restart(Instruction.Restart inst)
-    {
-        var address = (byte)(inst.Target * 8);
-
-        var returnAddress = _registers.ProgramCounter;
-        var (high, low) = BinaryUtil.ToBytes(returnAddress);
-        _bus.Write(--_registers.StackPointer, high);
-        _bus.Write(--_registers.StackPointer, low);
-
-        _registers.ProgramCounter = address;
-
-        return 4;
-    }
-
-    private ulong Return(Instruction.Return _)
-    {
-        var low = _bus.Read(_registers.StackPointer++);
-        var high = _bus.Read(_registers.StackPointer++);
-        var returnAddress = BinaryUtil.ToUShort(high, low);
-
-        _registers.ProgramCounter = returnAddress;
-
-        return 4;
-    }
-
-    private ulong ConditionalReturn(Instruction.ConditionalReturn inst)
-    {
-        var condition = GetCondition(inst.Condition);
-        if (!condition)
-        {
-            return 2;
-        }
-
-        var low = _bus.Read(_registers.StackPointer++);
-        var high = _bus.Read(_registers.StackPointer++);
-        var returnAddress = BinaryUtil.ToUShort(high, low);
-
-        _registers.ProgramCounter = returnAddress;
-
-        return 5;
-    }
-
-    private ulong ReturnInterrupt(Instruction.ReturnInterrupt _)
-    {
-        throw new NotImplementedException("[TODO] Interrupt not handled yet");
-    }
-
+    // Stack manipulation
     private ulong Push(Instruction.Push inst)
     {
         var value = GetRegister16Stack(inst.Register);
@@ -892,7 +825,7 @@ public class Cpu
         return 3;
     }
 
-    private ulong AddToStackPointerImm8(Instruction.AddToStackPointerImm8 _)
+    private ulong AddSignedLiteral8ToStackPointer(Instruction.AddSignedLiteral8ToStackPointer _)
     {
         var oldValue = _registers.StackPointer;
         var operand = (sbyte)FetchByte();
@@ -901,13 +834,23 @@ public class Cpu
         _registers.StackPointer = (ushort)newValue;
         _registers.Zero = false;
         _registers.Subtraction = false;
-        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
-        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
+        _registers.HalfCarry = IsOverflowBit3(oldValue, operand);
+        _registers.Carry = IsOverflowBit7(oldValue, operand);
 
         return 4;
     }
 
-    private ulong LoadStackPointerPlusImm8IntoHL(Instruction.LoadStackPointerPlusImm8IntoHL _)
+    private ulong LoadFromStackPointerIntoLiteral16Pointer(Instruction.LoadFromStackPointerIntoLiteral16Pointer _)
+    {
+        var destination = FetchUShort();
+
+        _bus.Write(destination++, (byte)_registers.StackPointer);
+        _bus.Write(destination, (byte)(_registers.StackPointer >> 8));
+
+        return 5;
+    }
+
+    private ulong LoadFromStackPointerPlusSignedLiteral8IntoHL(Instruction.LoadFromStackPointerPlusSignedLiteral8IntoHL _)
     {
         var oldValue = _registers.StackPointer;
         var operand = (sbyte)FetchByte();
@@ -916,8 +859,8 @@ public class Cpu
         _registers.HL = (ushort)newValue;
         _registers.Zero = false;
         _registers.Subtraction = false;
-        if (IsOverflowBit3(oldValue, newValue)) _registers.HalfCarry = true;
-        if (IsOverflowBit7(oldValue, newValue)) _registers.Carry = true;
+        _registers.HalfCarry = IsOverflowBit3(oldValue, operand);
+        _registers.Carry = IsOverflowBit7(oldValue, operand);
 
         return 3;
     }
@@ -926,5 +869,11 @@ public class Cpu
     {
         _registers.StackPointer = _registers.HL;
         return 2;
+    }
+
+    // 16 Bit instructions
+    private ulong Prefixed(Instruction.Prefixed _)
+    {
+        throw new NotImplementedException("[TODO] Prefixed is currently not supported");
     }
 }
