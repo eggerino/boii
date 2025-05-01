@@ -1126,6 +1126,79 @@ public class CpuTest
         AssertCpu(2, new(0, 0, 0, 0xFFFF, 0xFFFF, 0x0101), cpu);
     }
 
+    // 16 Bit instructions
+
+    // 16 Bit instructions
+    // Bit flag
+    [Fact]
+    public void PrefixedCheckBit()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0100_0000,  // bit 0, b
+            0xCB, 0b0100_1001,  // bit 1, c
+            0xCB, 0b0101_0010,  // bit 2, d
+            0xCB, 0b0101_1011,  // bit 3, e
+            0xCB, 0b0110_0100,  // bit 4, h
+            0xCB, 0b0110_1101,  // bit 5, l
+            0xCB, 0b0111_0110,  // bit 6, [hl]
+            0xCB, 0b0111_1111,  // bit 7, a
+        ]);
+        bus.Write(0, 0x40);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x8000, 0x0102, 0x0408, 0, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(2, new(0x8000 | 0b1010_0000, 0x0102, 0x0408, 0, 0, 0x0102), cpu);
+        cpu.Step();
+        AssertCpu(4, new(0x8000 | 0b1010_0000, 0x0102, 0x0408, 0, 0, 0x0104), cpu);
+        cpu.Step();
+        AssertCpu(6, new(0x8000 | 0b1010_0000, 0x0102, 0x0408, 0, 0, 0x0106), cpu);
+        cpu.Step();
+        AssertCpu(8, new(0x8000 | 0b1010_0000, 0x0102, 0x0408, 0, 0, 0x0108), cpu);
+        cpu.Step();
+        AssertCpu(10, new(0x8000 | 0b0010_0000, 0x0102, 0x0408, 0, 0, 0x010A), cpu);
+        cpu.Step();
+        AssertCpu(12, new(0x8000 | 0b0010_0000, 0x0102, 0x0408, 0, 0, 0x010C), cpu);
+        cpu.Step();
+        AssertCpu(15, new(0x8000 | 0b1010_0000, 0x0102, 0x0408, 0, 0, 0x010E), cpu);
+        cpu.Step();
+        AssertCpu(17, new(0x8000 | 0b1010_0000, 0x0102, 0x0408, 0, 0, 0x0110), cpu);
+    }
+
+    [Fact]
+    public void PrefixedSetBit()
+    {
+        var registers = new int[] { 6, 0, 1, 2, 3, 4, 5, 7 };
+        var program = registers
+            .SelectMany(r => Enumerable.Range(0, 8).Select(b => (r, b)))
+            .Select(x => (byte)(0b1100_0000 | x.r | (x.b << 3)))
+            .SelectMany(x => new byte[] { 0xCB, x });
+        var bus = Bus.From(program);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 64);
+
+        AssertCpu(8 * 4 + 56 * 2, new(0xFF00, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0x0100 + 2 * 64), cpu);
+        Assert.Equal(0xFF, bus.Read(0));
+    }
+
+    [Fact]
+    public void PrefixedResetBit()
+    {
+        var registers = new int[] { 0, 1, 2, 3, 4, 5, 6, 7 };
+        var program = registers
+            .SelectMany(r => Enumerable.Range(0, 8).Select(b => (r, b)))
+            .Select(x => (byte)(0b1000_0000 | x.r | (x.b << 3)))
+            .SelectMany(x => new byte[] { 0xCB, x });
+        var bus = Bus.From(program);
+        bus.Write(0, 0xFF);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xFF00, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0x0100));
+
+        Step(cpu, 64);
+
+        AssertCpu(8 * 4 + 56 * 2, new(0x0000, 0x0000, 0x0000, 0x0000, 0, 0x0100 + 2 * 64), cpu);
+        Assert.Equal(0x00, bus.Read(0));
+    }
+
     private static void Step(Cpu cpu, int amount)
     {
         foreach (var _ in Enumerable.Repeat(0, amount))
