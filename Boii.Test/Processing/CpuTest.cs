@@ -52,9 +52,9 @@ public class CpuTest
         var cpu = Cpu.Create(bus);
 
         cpu.Step();
-        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, Interrupt: false), cpu);
+        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(2, new(0, 0, 0, 0, 0, 0x0102, Interrupt: true), cpu);
+        AssertCpu(2, new(0, 0, 0, 0, 0, 0x0102, InterruptMaster: true), cpu);
     }
 
     [Fact]
@@ -63,10 +63,10 @@ public class CpuTest
         var bus = Bus.From([
             0b1111_0011         // di
         ]);
-        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0, 0x0100, Interrupt: true));
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0, 0x0100, InterruptMaster: true));
 
         cpu.Step();
-        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, Interrupt: false), cpu);
+        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, InterruptMaster: false), cpu);
     }
 
     [Fact]
@@ -87,25 +87,25 @@ public class CpuTest
         var cpu = Cpu.Create(bus);
 
         cpu.Step();
-        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, Interrupt: false), cpu);
+        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(2, new(0, 0, 0, 0, 0, 0x0102, Interrupt: false), cpu);
+        AssertCpu(2, new(0, 0, 0, 0, 0, 0x0102, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(3, new(0, 0, 0, 0, 0, 0x0103, Interrupt: false), cpu);
+        AssertCpu(3, new(0, 0, 0, 0, 0, 0x0103, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(4, new(0, 0, 0, 0, 0, 0x0104, Interrupt: false), cpu);
+        AssertCpu(4, new(0, 0, 0, 0, 0, 0x0104, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(5, new(0, 0, 0, 0, 0, 0x0105, Interrupt: false), cpu);
+        AssertCpu(5, new(0, 0, 0, 0, 0, 0x0105, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(6, new(0, 0, 0, 0, 0, 0x0106, Interrupt: true), cpu);
+        AssertCpu(6, new(0, 0, 0, 0, 0, 0x0106, InterruptMaster: true), cpu);
         cpu.Step();
-        AssertCpu(7, new(0, 0, 0, 0, 0, 0x0107, Interrupt: true), cpu);
+        AssertCpu(7, new(0, 0, 0, 0, 0, 0x0107, InterruptMaster: true), cpu);
         cpu.Step();
-        AssertCpu(8, new(0, 0, 0, 0, 0, 0x0108, Interrupt: false), cpu);
+        AssertCpu(8, new(0, 0, 0, 0, 0, 0x0108, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(9, new(0, 0, 0, 0, 0, 0x0109, Interrupt: false), cpu);
+        AssertCpu(9, new(0, 0, 0, 0, 0, 0x0109, InterruptMaster: false), cpu);
         cpu.Step();
-        AssertCpu(10, new(0, 0, 0, 0, 0, 0x010A, Interrupt: false), cpu);
+        AssertCpu(10, new(0, 0, 0, 0, 0, 0x010A, InterruptMaster: false), cpu);
     }
 
     // Load
@@ -987,7 +987,7 @@ public class CpuTest
 
         cpu.Step();
 
-        AssertCpu(4, new(0, 0, 0, 0, 2, 0x0102, Interrupt: true), cpu);
+        AssertCpu(4, new(0, 0, 0, 0, 2, 0x0102, InterruptMaster: true), cpu);
     }
 
     // Carry flag

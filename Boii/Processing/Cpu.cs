@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using Boii.Abstractions;
 using Boii.Errors;
 using Boii.Processing.Instructions;
@@ -9,13 +8,14 @@ namespace Boii.Processing;
 
 public class Cpu
 {
-    public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter, bool Interrupt = false);
+    public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter, bool InterruptMaster = false);
 
     private readonly CpuRegisters _registers = CpuRegisters.Create();
-    private bool _interruptFlag = false;
-    private Action? _dispatchEnableInterruptFlag = null;
     private ulong _ticks = 0;
     private readonly IGenericIO _bus;
+
+    private bool _interruptMaster = false;
+    private Action? _dispatchInterruptMaster = null;
 
     private Cpu(IGenericIO bus) => _bus = bus;
 
@@ -31,6 +31,7 @@ public class Cpu
         cpu._registers.HL = registerDump.HL;
         cpu._registers.StackPointer = registerDump.StackPointer;
         cpu._registers.ProgramCounter = registerDump.ProgramCounter;
+        cpu._interruptMaster = registerDump.InterruptMaster;
 
         return cpu;
     }
@@ -44,7 +45,7 @@ public class Cpu
         HL: _registers.HL,
         StackPointer: _registers.StackPointer,
         ProgramCounter: _registers.ProgramCounter,
-        Interrupt: _interruptFlag);
+        InterruptMaster: _interruptMaster);
 
     public void Step()
     {
@@ -54,7 +55,7 @@ public class Cpu
             throw InvalidOpcode.Create(opcode, (ushort)(_registers.ProgramCounter - 1));
 
         // Dispatch an enqueued enable interrupt
-        _dispatchEnableInterruptFlag?.Invoke();
+        _dispatchInterruptMaster?.Invoke();
 
         _ticks += Execute(instruction);
     }
@@ -163,10 +164,10 @@ public class Cpu
 
     private static bool IsBorrowBit4(int oldValue, int decrement) => ((oldValue & 0x000F) - (decrement & 0x000F)) < 0;
 
-    private void DispatchEnableInterrupt()
+    private void DispatchEnableInterruptMaster()
     {
-        _interruptFlag = true;
-        _dispatchEnableInterruptFlag = null;
+        _interruptMaster = true;
+        _dispatchInterruptMaster = null;
     }
 
     private ulong Execute(Instruction inst) => inst switch
@@ -301,13 +302,13 @@ public class Cpu
     private ulong EnableInterrupt(Instruction.EnableInterrupt _)
     {
         // Enqueue an enable interrupt
-        _dispatchEnableInterruptFlag = DispatchEnableInterrupt;
+        _dispatchInterruptMaster = DispatchEnableInterruptMaster;
         return 1;
     }
 
     private ulong DisableInterrupt(Instruction.DisableInterrupt _)
     {
-        _interruptFlag = false;
+        _interruptMaster = false;
         return 1;
     }
 
@@ -800,7 +801,7 @@ public class Cpu
     private ulong ReturnInterrupt(Instruction.ReturnInterrupt _)
     {
         DoReturn();
-        _interruptFlag = true;  // Is immediately after the return
+        _interruptMaster = true;    // Is immediately after the return
         return 4;
     }
 

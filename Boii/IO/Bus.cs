@@ -1,5 +1,6 @@
 using Boii.Abstractions;
 using Boii.Errors;
+using Boii.Memory;
 
 namespace Boii.IO;
 
@@ -26,10 +27,10 @@ public class Bus : IGenericIO
     private readonly IGenericIO _cartridgeRom;
     private readonly IGenericIO _vram;
     private readonly IGenericIO _cartridgeRam;
-    private readonly RandomAccessMemory _workRam = RandomAccessMemory.Create("WRAM", 0x2000);
+    private readonly ArrayMemory _workRam = ArrayMemory.Create("WRAM", 0x2000);
     private readonly IGenericIO _objectAttributeMemory;
     private readonly IGenericIO _ioRegisters;
-    private readonly RandomAccessMemory _highRam = RandomAccessMemory.Create("HRAM", 0x007F);
+    private readonly ArrayMemory _highRam = ArrayMemory.Create("HRAM", 0x007F);
     private byte _interruptEnable = 0;
 
     private Bus(IGenericIO cartridgeRom, IGenericIO vram, IGenericIO cartridgeRam, IGenericIO objectAttributeMemory, IGenericIO ioRegisters)
@@ -60,8 +61,7 @@ public class Bus : IGenericIO
 
     public void Write(ushort address, byte value)
     {
-        ushort x;
-        if (CartridgeRomRange.IsIn(address, out x))
+        if (CartridgeRomRange.IsIn(address, out var x))
             _cartridgeRom.Write(x, value);
         else if (VramRange.IsIn(address, out x))
             _vram.Write(x, value);

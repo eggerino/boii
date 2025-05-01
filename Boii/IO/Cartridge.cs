@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Boii.Abstractions;
-using Boii.Errors;
+using Boii.Memory;
 using Boii.Util;
 
 namespace Boii.IO;
@@ -49,23 +49,6 @@ public class Cartridge
         byte HeaderChecksum,
         ushort GlobalChecksum);
 
-    private class Memory(string location, byte[] data) : IGenericIO
-    {
-        public byte Read(ushort address)
-        {
-            if (address >= data.Length)
-                throw SegmentationFault.Create($"{location}", address);
-            return data[address];
-        }
-
-        public void Write(ushort address, byte value)
-        {
-            if (address >= data.Length)
-                throw SegmentationFault.Create($"{location}", address);
-            data[address] = value;
-        }
-    }
-
     public IGenericIO ReadOnlyMemory { get; }
     public IGenericIO RandomAccessMemory { get; }
     public HeaderInfo Header { get; }
@@ -84,11 +67,11 @@ public class Cartridge
         if (errors.Count > 0)
             return (null, errors);
 
-        var ramBytes = new byte[header.RamSize];
-
         return (new Cartridge(
-            readOnlyMemory: new Memory($"{nameof(Cartridge)}.{nameof(ReadOnlyMemory)}", romBytes),
-            randomAccessMemory: new Memory($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", ramBytes), header), []);
+            readOnlyMemory: ArrayMemory.From($"{nameof(Cartridge)}.{nameof(ReadOnlyMemory)}", romBytes),
+            randomAccessMemory: ArrayMemory.Create($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", header.RamSize),
+            header: header),
+            []);
     }
 
     private static HeaderInfo? ParseHeader(byte[] romBytes)
