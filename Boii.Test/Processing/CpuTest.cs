@@ -1,5 +1,4 @@
 using Boii.Test.Mock;
-using Xunit.Sdk;
 
 namespace Boii.Processing.Test;
 

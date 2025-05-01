@@ -49,38 +49,28 @@ public class Cartridge
         byte HeaderChecksum,
         ushort GlobalChecksum);
 
-    private class ROM(byte[] data) : IReadable
+    private class Memory(string location, byte[] data) : IGenericIO
     {
         public byte Read(ushort address)
         {
             if (address >= data.Length)
-                throw SegmentationFault.Create($"{nameof(Cartridge)}.{nameof(ReadOnlyMemory)}", address);
-            return data[address];
-        }
-    }
-
-    private class RAM(byte[] data) : IGenericIO
-    {
-        public byte Read(ushort address)
-        {
-            if (address >= data.Length)
-                throw SegmentationFault.Create($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", address);
+                throw SegmentationFault.Create($"{location}", address);
             return data[address];
         }
 
         public void Write(ushort address, byte value)
         {
             if (address >= data.Length)
-                throw SegmentationFault.Create($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", address);
+                throw SegmentationFault.Create($"{location}", address);
             data[address] = value;
         }
     }
 
-    public IReadable ReadOnlyMemory { get; }
+    public IGenericIO ReadOnlyMemory { get; }
     public IGenericIO RandomAccessMemory { get; }
     public HeaderInfo Header { get; }
 
-    private Cartridge(IReadable readOnlyMemory, IGenericIO randomAccessMemory, HeaderInfo header) =>
+    private Cartridge(IGenericIO readOnlyMemory, IGenericIO randomAccessMemory, HeaderInfo header) =>
         (ReadOnlyMemory, RandomAccessMemory, Header) = (readOnlyMemory, randomAccessMemory, header);
 
     public static (Cartridge? cartridge, IReadOnlyList<string> errors) FromFile(string path, ValidationSettings settings)
@@ -96,7 +86,9 @@ public class Cartridge
 
         var ramBytes = new byte[header.RamSize];
 
-        return (new Cartridge(new ROM(romBytes), new RAM(ramBytes), header), []);
+        return (new Cartridge(
+            readOnlyMemory: new Memory($"{nameof(Cartridge)}.{nameof(ReadOnlyMemory)}", romBytes),
+            randomAccessMemory: new Memory($"{nameof(Cartridge)}.{nameof(RandomAccessMemory)}", ramBytes), header), []);
     }
 
     private static HeaderInfo? ParseHeader(byte[] romBytes)
