@@ -1,8 +1,9 @@
 using Boii.Test.Mock;
+using static Boii.Processing.Test.CpuTestUtil;
 
 namespace Boii.Processing.Test;
 
-public class CpuTest
+public class CpuInstructionTest
 {
     // Misc
     [Fact]
@@ -63,6 +64,7 @@ public class CpuTest
         var bus = Bus.From([
             0b1111_0011         // di
         ]);
+        bus.EnsureSize(0x10000);
         var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0, 0x0100, InterruptMaster: true));
 
         cpu.Step();
@@ -84,6 +86,7 @@ public class CpuTest
             0,                  // nop
             0,                  // nop
         ]);
+        bus.EnsureSize(0x10000);
         var cpu = Cpu.Create(bus);
 
         cpu.Step();
@@ -1435,17 +1438,5 @@ public class CpuTest
 
         AssertCpu(8 * 4 + 56 * 2, new(0x0000, 0x0000, 0x0000, 0x0000, 0, 0x0100 + 2 * 64), cpu);
         Assert.Equal(0x00, bus.Read(0));
-    }
-
-    private static void Step(Cpu cpu, int amount)
-    {
-        foreach (var _ in Enumerable.Repeat(0, amount))
-            cpu.Step();
-    }
-
-    private static void AssertCpu(ulong expectedTicks, Cpu.RegisterState expectedState, Cpu actual)
-    {
-        Assert.Equal(expectedTicks, actual.Ticks);
-        Assert.Equal(expectedState, actual.GetRegisterState());
     }
 }

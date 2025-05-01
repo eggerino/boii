@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Boii.Abstractions;
 using Boii.Errors;
 using Boii.Processing.Instructions;
@@ -10,9 +11,14 @@ public class Cpu
 {
     public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter, bool InterruptMaster = false);
 
+    private const ushort InterruptFlagPointer = 0xFF0F;
+    private const ushort InterruptEnablePointer = 0xFFFF;
+
     private readonly CpuRegisters _registers = CpuRegisters.Create();
     private ulong _ticks = 0;
     private readonly IGenericIO _bus;
+
+    private bool _halted = false;
 
     private bool _interruptMaster = false;
     private Action? _dispatchInterruptMaster = null;
@@ -49,6 +55,18 @@ public class Cpu
 
     public void Step()
     {
+        if (TryHandleInterrupt(out var ticks))
+        {
+            _ticks += ticks;
+            return;
+        }
+
+        if (_halted)
+        {
+            _ticks++;
+            return;
+        }
+
         var opcode = FetchByte();
 
         if (Instruction.FromOpcode(opcode) is not Instruction instruction)
@@ -58,6 +76,49 @@ public class Cpu
         _dispatchInterruptMaster?.Invoke();
 
         _ticks += Execute(instruction);
+    }
+
+    private bool TryHandleInterrupt(out ulong ticks)
+    {
+        ticks = 0;
+        if (!_interruptMaster)
+            return false;       // No interrupts allowed
+
+        var interruptEnables = _bus.Read(InterruptEnablePointer);
+        var interruptFlags = _bus.Read(InterruptFlagPointer);
+        var firedInterrupts = (byte)(interruptEnables & interruptFlags);
+
+        if (firedInterrupts == 0)
+            return false;       // No interrupts are fired
+
+        HandleInterrupt(firedInterrupts);
+        ticks = 5;
+        return true;
+    }
+
+    private void HandleInterrupt(byte firedInterrupts)
+    {
+        // Get the interrupt with the highest priority
+        var index = Enumerable.Range(0, 5)
+            .Select(idx => (BinaryUtil.GetBit(firedInterrupts, idx), idx))
+            .First(x => x.Item1)
+            .idx;
+
+        // Disable its requested flag (acknowledge)
+        var interruptFlags = _bus.Read(InterruptFlagPointer);
+        interruptFlags = BinaryUtil.SetBit(interruptFlags, index, false);
+        _bus.Write(InterruptFlagPointer, interruptFlags);
+
+        // Disable master flag (Prevent others)
+        _interruptMaster = false;
+
+        // Call the address of the interrupt
+        Span<ushort> interruptsSources = [0x40, 0x48, 0x50, 0x58, 0x60];
+        var interruptsSource = interruptsSources[index];
+        DoCall(interruptsSource);
+
+        // Interrupts resume execution
+        _halted = false;
     }
 
     private byte FetchByte() => _bus.Read(_registers.ProgramCounter++);
