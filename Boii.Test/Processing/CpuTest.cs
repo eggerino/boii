@@ -1,4 +1,5 @@
 using Boii.Test.Mock;
+using Xunit.Sdk;
 
 namespace Boii.Processing.Test;
 
@@ -1127,6 +1128,149 @@ public class CpuTest
     }
 
     // 16 Bit instructions
+    // Bit shift
+    [Fact]
+    public void PrefixedRotateLeft()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0000_0000,  // rlc b
+            0xCB, 0b0000_0001,  // rlc c
+            0xCB, 0b0000_0010,  // rlc d
+            0xCB, 0b0000_0011,  // rlc e
+            0xCB, 0b0000_0100,  // rlc h
+            0xCB, 0b0000_0101,  // rlc l
+            0xCB, 0b0000_0110,  // rlc [hl]
+            0xCB, 0b0000_0111,  // rlc a
+        ]);
+        bus.Write(0, 0b1010_1010);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xAA00, 0xAAAA, 0xAAAA, 0, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(2, new(0xAA00 | 0b0001_0000, 0x55AA, 0xAAAA, 0, 0, 0x0102), cpu);
+        cpu.Step();
+        AssertCpu(4, new(0xAA00 | 0b0001_0000, 0x5555, 0xAAAA, 0, 0, 0x0104), cpu);
+        cpu.Step();
+        AssertCpu(6, new(0xAA00 | 0b0001_0000, 0x5555, 0x55AA, 0, 0, 0x0106), cpu);
+        cpu.Step();
+        AssertCpu(8, new(0xAA00 | 0b0001_0000, 0x5555, 0x5555, 0, 0, 0x0108), cpu);
+        cpu.Step();
+        AssertCpu(10, new(0xAA00 | 0b1000_0000, 0x5555, 0x5555, 0, 0, 0x010A), cpu);
+        cpu.Step();
+        AssertCpu(12, new(0xAA00 | 0b1000_0000, 0x5555, 0x5555, 0, 0, 0x010C), cpu);
+        cpu.Step();
+        AssertCpu(16, new(0xAA00 | 0b0001_0000, 0x5555, 0x5555, 0, 0, 0x010E), cpu);
+        Assert.Equal(0x55, bus.Read(0));
+        cpu.Step();
+        AssertCpu(18, new(0x5500 | 0b0001_0000, 0x5555, 0x5555, 0, 0, 0x0110), cpu);
+    }
+
+    [Fact]
+    public void PrefixedRotateLeftThroughCarry()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0001_0000,  // rl b
+            0xCB, 0b0001_0001,  // rl c
+            0xCB, 0b0001_0010,  // rl d
+            0xCB, 0b0001_0011,  // rl e
+            0xCB, 0b0001_0110,  // rl [hl]
+            0xCB, 0b0001_0100,  // rl h
+            0xCB, 0b0001_0101,  // rl l
+            0xCB, 0b0001_0111,  // rl a
+        ]);
+        bus.Write(0, 0b1010_1010);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xAA00, 0xAAAA, 0xAAAA, 0, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(2, new(0xAA00 | 0b0001_0000, 0x54AA, 0xAAAA, 0, 0, 0x0102), cpu);
+        cpu.Step();
+        AssertCpu(4, new(0xAA00 | 0b0001_0000, 0x5455, 0xAAAA, 0, 0, 0x0104), cpu);
+        cpu.Step();
+        AssertCpu(6, new(0xAA00 | 0b0001_0000, 0x5455, 0x55AA, 0, 0, 0x0106), cpu);
+        cpu.Step();
+        AssertCpu(8, new(0xAA00 | 0b0001_0000, 0x5455, 0x5555, 0, 0, 0x0108), cpu);
+        cpu.Step();
+        AssertCpu(12, new(0xAA00 | 0b0001_0000, 0x5455, 0x5555, 0, 0, 0x010A), cpu);
+        Assert.Equal(0x55, bus.Read(0));
+        cpu.Step();
+        AssertCpu(14, new(0xAA00 | 0b0000_0000, 0x5455, 0x5555, 0x0100, 0, 0x010C), cpu);
+        cpu.Step();
+        AssertCpu(16, new(0xAA00 | 0b1000_0000, 0x5455, 0x5555, 0x0100, 0, 0x010E), cpu);
+        cpu.Step();
+        AssertCpu(18, new(0x5400 | 0b0001_0000, 0x5455, 0x5555, 0x0100, 0, 0x0110), cpu);
+    }
+
+    [Fact]
+    public void PrefixedRotateRight()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0000_1000,  // rrc b
+            0xCB, 0b0000_1001,  // rrc c
+            0xCB, 0b0000_1010,  // rrc d
+            0xCB, 0b0000_1011,  // rrc e
+            0xCB, 0b0000_1100,  // rrc h
+            0xCB, 0b0000_1101,  // rrc l
+            0xCB, 0b0000_1110,  // rrc [hl]
+            0xCB, 0b0000_1111,  // rrc a
+        ]);
+        bus.Write(0, 0x55);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x5500, 0x5555, 0x5555, 0, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(2, new(0x5500 | 0b0001_0000, 0xAA55, 0x5555, 0, 0, 0x0102), cpu);
+        cpu.Step();
+        AssertCpu(4, new(0x5500 | 0b0001_0000, 0xAAAA, 0x5555, 0, 0, 0x0104), cpu);
+        cpu.Step();
+        AssertCpu(6, new(0x5500 | 0b0001_0000, 0xAAAA, 0xAA55, 0, 0, 0x0106), cpu);
+        cpu.Step();
+        AssertCpu(8, new(0x5500 | 0b0001_0000, 0xAAAA, 0xAAAA, 0, 0, 0x0108), cpu);
+        cpu.Step();
+        AssertCpu(10, new(0x5500 | 0b1000_0000, 0xAAAA, 0xAAAA, 0, 0, 0x010A), cpu);
+        cpu.Step();
+        AssertCpu(12, new(0x5500 | 0b1000_0000, 0xAAAA, 0xAAAA, 0, 0, 0x010C), cpu);
+        cpu.Step();
+        AssertCpu(16, new(0x5500 | 0b0001_0000, 0xAAAA, 0xAAAA, 0, 0, 0x010E), cpu);
+        Assert.Equal(0xAA, bus.Read(0));
+        cpu.Step();
+        AssertCpu(18, new(0xAA00 | 0b0001_0000, 0xAAAA, 0xAAAA, 0, 0, 0x0110), cpu);
+    }
+
+    [Fact]
+    public void PrefixedRotateRightThroughCarry()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0001_1000,  // rr b
+            0xCB, 0b0001_1001,  // rr c
+            0xCB, 0b0001_1010,  // rr d
+            0xCB, 0b0001_1011,  // rr e
+            0xCB, 0b0001_1110,  // rr [hl]
+            0xCB, 0b0001_1100,  // rr h
+            0xCB, 0b0001_1101,  // rr l
+            0xCB, 0b0001_1111,  // rr a
+        ]);
+        bus.Write(0, 0x55);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x5500, 0x5555, 0x5555, 0, 0, 0x0100));
+
+        cpu.Step();
+        AssertCpu(2, new(0x5500 | 0b0001_0000, 0x2A55, 0x5555, 0, 0, 0x0102), cpu);
+        cpu.Step();
+        AssertCpu(4, new(0x5500 | 0b0001_0000, 0x2AAA, 0x5555, 0, 0, 0x0104), cpu);
+        cpu.Step();
+        AssertCpu(6, new(0x5500 | 0b0001_0000, 0x2AAA, 0xAA55, 0, 0, 0x0106), cpu);
+        cpu.Step();
+        AssertCpu(8, new(0x5500 | 0b0001_0000, 0x2AAA, 0xAAAA, 0, 0, 0x0108), cpu);
+        cpu.Step();
+        AssertCpu(12, new(0x5500 | 0b0001_0000, 0x2AAA, 0xAAAA, 0, 0, 0x010A), cpu);
+        Assert.Equal(0xAA, bus.Read(0));
+        cpu.Step();
+        AssertCpu(14, new(0x5500 | 0b0000_0000, 0x2AAA, 0xAAAA, 0x8000, 0, 0x010C), cpu);
+        cpu.Step();
+        AssertCpu(16, new(0x5500 | 0b1000_0000, 0x2AAA, 0xAAAA, 0x8000, 0, 0x010E), cpu);
+        cpu.Step();
+        AssertCpu(18, new(0x2A00 | 0b0001_0000, 0x2AAA, 0xAAAA, 0x8000, 0, 0x0110), cpu);
+    }
+
+
+
 
     // 16 Bit instructions
     // Bit flag
