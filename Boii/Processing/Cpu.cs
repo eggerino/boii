@@ -935,7 +935,7 @@ public class Cpu
         if (carry) operand |= 0b0000_0001;
 
         SetRegister8(inst.Operand, operand);
-        _registers.Zero = operand == 0; ;
+        _registers.Zero = operand == 0;
         _registers.Subtraction = false;
         _registers.HalfCarry = false;
         _registers.Carry = carry;
@@ -967,7 +967,7 @@ public class Cpu
         if (carry) operand |= 0b1000_0000;
 
         SetRegister8(inst.Operand, operand);
-        _registers.Zero = operand == 0; ;
+        _registers.Zero = operand == 0;
         _registers.Subtraction = false;
         _registers.HalfCarry = false;
         _registers.Carry = carry;
@@ -983,7 +983,7 @@ public class Cpu
         if (_registers.Carry) operand |= 0b1000_0000;
 
         SetRegister8(inst.Operand, operand);
-        _registers.Zero = operand == 0; ;
+        _registers.Zero = operand == 0;
         _registers.Subtraction = false;
         _registers.HalfCarry = false;
         _registers.Carry = carry;
@@ -998,7 +998,7 @@ public class Cpu
         operand <<= 1;
 
         SetRegister8(inst.Operand, operand);
-        _registers.Zero = operand == 0; ;
+        _registers.Zero = operand == 0;
         _registers.Subtraction = false;
         _registers.HalfCarry = false;
         _registers.Carry = carry;
@@ -1015,7 +1015,7 @@ public class Cpu
         if (highBit) operand |= 0b1000_0000;
 
         SetRegister8(inst.Operand, operand);
-        _registers.Zero = operand == 0; ;
+        _registers.Zero = operand == 0;
         _registers.Subtraction = false;
         _registers.HalfCarry = false;
         _registers.Carry = carry;
@@ -1030,6 +1030,7 @@ public class Cpu
         operand >>= 4;
         operand |= (byte)(lowerNibble << 4);
 
+        SetRegister8(inst.Operand, operand);
         _registers.Zero = operand == 0;
         _registers.Subtraction = false;
         _registers.HalfCarry = false;
@@ -1045,7 +1046,7 @@ public class Cpu
         operand >>= 1;
 
         SetRegister8(inst.Operand, operand);
-        _registers.Zero = operand == 0; ;
+        _registers.Zero = operand == 0;
         _registers.Subtraction = false;
         _registers.HalfCarry = false;
         _registers.Carry = carry;

@@ -1269,8 +1269,103 @@ public class CpuTest
         AssertCpu(18, new(0x2A00 | 0b0001_0000, 0x2AAA, 0xAAAA, 0x8000, 0, 0x0110), cpu);
     }
 
+    [Fact]
+    public void PrefixedShiftLeftArithmetic()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0010_0000,  // sla b
+            0xCB, 0b0010_0001,  // sla c
+            0xCB, 0b0010_0010,  // sla d
+            0xCB, 0b0010_0011,  // sla e
+            0xCB, 0b0010_0100,  // sla h
+            0xCB, 0b0010_0101,  // sla l
+            0xCB, 0b0010_0110,  // sla [hl]
+            0xCB, 0b0010_0111,  // sla a
+        ]);
+        bus.Write(0, 0xAA);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xAA00, 0xAAAA, 0xAAAA, 0, 0, 0x0100));
 
+        Step(cpu, 4);
+        AssertCpu(8, new(0xAA00 | 0b0001_0000, 0x5454, 0x5454, 0, 0, 0x0108), cpu);
+        Step(cpu, 2);
+        AssertCpu(12, new(0xAA00 | 0b1000_0000, 0x5454, 0x5454, 0, 0, 0x010C), cpu);
+        Step(cpu, 2);
+        AssertCpu(18, new(0x5400 | 0b0001_0000, 0x5454, 0x5454, 0, 0, 0x0110), cpu);
+        Assert.Equal(0x54, bus.Read(0));
+    }
 
+    [Fact]
+    public void PrefixedShiftRightArithmetic()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0010_1000,  // sra b
+            0xCB, 0b0010_1001,  // sra c
+            0xCB, 0b0010_1010,  // sra d
+            0xCB, 0b0010_1011,  // sra e
+            0xCB, 0b0010_1100,  // sra h
+            0xCB, 0b0010_1101,  // sra l
+            0xCB, 0b0010_1110,  // sra [hl]
+            0xCB, 0b0010_1111,  // sra a
+        ]);
+        bus.Write(0, 0xA5);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xA500, 0xA5A5, 0xA5A5, 0, 0, 0x0100));
+
+        Step(cpu, 4);
+        AssertCpu(8, new(0xA500 | 0b0001_0000, 0xD2D2, 0xD2D2, 0, 0, 0x0108), cpu);
+        Step(cpu, 2);
+        AssertCpu(12, new(0xA500 | 0b1000_0000, 0xD2D2, 0xD2D2, 0, 0, 0x010C), cpu);
+        Step(cpu, 2);
+        AssertCpu(18, new(0xD200 | 0b0001_0000, 0xD2D2, 0xD2D2, 0, 0, 0x0110), cpu);
+        Assert.Equal(0xD2, bus.Read(0));
+    }
+
+    [Fact]
+    public void PrefixedSwap()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0011_0000,  // swap b
+            0xCB, 0b0011_0001,  // swap c
+            0xCB, 0b0011_0010,  // swap d
+            0xCB, 0b0011_0011,  // swap e
+            0xCB, 0b0011_0100,  // swap h
+            0xCB, 0b0011_0101,  // swap l
+            0xCB, 0b0011_0110,  // swap [hl]
+            0xCB, 0b0011_0111,  // swap a
+        ]);
+        bus.Write(0, 0x1E);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0x1E00, 0x1E1E, 0x1E1E, 0, 0, 0x0100));
+
+        Step(cpu, 5);
+        AssertCpu(10, new(0x1E00 | 0b1000_0000, 0xE1E1, 0xE1E1, 0, 0, 0x010A), cpu);
+        Step(cpu, 3);
+        AssertCpu(18, new(0xE100 | 0b0000_0000, 0xE1E1, 0xE1E1, 0, 0, 0x0110), cpu);
+        Assert.Equal(0xE1, bus.Read(0));
+    }
+
+    [Fact]
+    public void PrefixedShiftRightLogical()
+    {
+        var bus = Bus.From([
+            0xCB, 0b0011_1000,  // srl b
+            0xCB, 0b0011_1001,  // srl c
+            0xCB, 0b0011_1010,  // srl d
+            0xCB, 0b0011_1011,  // srl e
+            0xCB, 0b0011_1100,  // srl h
+            0xCB, 0b0011_1101,  // srl l
+            0xCB, 0b0011_1110,  // srl [hl]
+            0xCB, 0b0011_1111,  // srl a
+        ]);
+        bus.Write(0, 0xA5);
+        var cpu = Cpu.CreateWithRegisterState(bus, new(0xA500, 0xA5A5, 0xA5A5, 0, 0, 0x0100));
+
+        Step(cpu, 4);
+        AssertCpu(8, new(0xA500 | 0b0001_0000, 0x5252, 0x5252, 0, 0, 0x0108), cpu);
+        Step(cpu, 2);
+        AssertCpu(12, new(0xA500 | 0b1000_0000, 0x5252, 0x5252, 0, 0, 0x010C), cpu);
+        Step(cpu, 2);
+        AssertCpu(18, new(0x5200 | 0b0001_0000, 0x5252, 0x5252, 0, 0, 0x0110), cpu);
+        Assert.Equal(0x52, bus.Read(0));
+    }
 
     // 16 Bit instructions
     // Bit flag
