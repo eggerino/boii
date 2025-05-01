@@ -256,7 +256,7 @@ public class Cpu
         // 16 Bit instructions
         Instruction.Prefixed x => Prefixed(x),
 
-        _ => throw new UnreachableException($"Exhaustive pattern matching. instruction {inst} not handled"),
+        _ => throw PatternMatchingError.Create(inst),
     };
 
     // Misc
@@ -923,7 +923,7 @@ public class Cpu
         PrefixedInstruction.CheckBit x => PrefixedCheckBit(x),
         PrefixedInstruction.SetBit x => PrefixedSetBit(x),
         PrefixedInstruction.ResetBit x => PrefixedResetBit(x),
-        _ => throw new UnreachableException($"Exhaustive pattern matching. instruction {inst} not handled"),
+        _ => throw PatternMatchingError.Create(inst),
     };
 
     // Bit shift

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Linq;
+using Boii.Errors;
 using static Boii.Processing.Instructions.EncodedArgument;
 
 namespace Boii.Processing.Instructions;
@@ -40,6 +41,6 @@ internal abstract record PrefixedInstruction
         var x when (x & 0b1100_0000) == 0b0100_0000 => new CheckBit(ToRegister8(x, 0), ToU3(x, 3)),
         var x when (x & 0b1100_0000) == 0b1000_0000 => new ResetBit(ToRegister8(x, 0), ToU3(x, 3)),
         var x when (x & 0b1100_0000) == 0b1100_0000 => new SetBit(ToRegister8(x, 0), ToU3(x, 3)),
-        _ => throw new UnreachableException($"Exhaustive pattern matching. opcode {opcode} not handled"),
+        _ => throw PatternMatchingError.Create(opcode),
     };
 }
