@@ -44,6 +44,18 @@ public class CpuInstructionTest
 
     // Interrupt
     [Fact]
+    public void Halt()
+    {
+        var bus = Bus.From([0b0111_0110]);  // halt
+        bus.EnsureSize(0x1_0000);
+        var cpu = Cpu.Create(bus);
+
+        Step(cpu, 2);
+        
+        AssertCpu(2, new(0, 0, 0, 0, 0, 0x0101, Halted: true), cpu);
+    }
+
+    [Fact]
     public void EnableInterrupt()
     {
         var bus = Bus.From([

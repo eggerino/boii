@@ -9,7 +9,7 @@ namespace Boii.Processing;
 
 public class Cpu
 {
-    public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter, bool InterruptMaster = false);
+    public record RegisterState(ushort AF, ushort BC, ushort DE, ushort HL, ushort StackPointer, ushort ProgramCounter, bool InterruptMaster = false, bool Halted = false);
 
     private const ushort InterruptFlagPointer = 0xFF0F;
     private const ushort InterruptEnablePointer = 0xFFFF;
@@ -17,11 +17,9 @@ public class Cpu
     private readonly CpuRegisters _registers = CpuRegisters.Create();
     private ulong _ticks = 0;
     private readonly IGenericIO _bus;
-
     private bool _halted = false;
-
-    private bool _interruptMaster = false;
-    private Action? _dispatchInterruptMaster = null;
+    private byte? _bufferedOpcode = null;
+    private InterruptMasterDispatcher _interruptMaster = InterruptMasterDispatcher.CreateWith(false);
 
     private Cpu(IGenericIO bus) => _bus = bus;
 
@@ -37,7 +35,8 @@ public class Cpu
         cpu._registers.HL = registerDump.HL;
         cpu._registers.StackPointer = registerDump.StackPointer;
         cpu._registers.ProgramCounter = registerDump.ProgramCounter;
-        cpu._interruptMaster = registerDump.InterruptMaster;
+        cpu._interruptMaster = InterruptMasterDispatcher.CreateWith(registerDump.InterruptMaster);
+        cpu._halted = registerDump.Halted;
 
         return cpu;
     }
@@ -51,49 +50,68 @@ public class Cpu
         HL: _registers.HL,
         StackPointer: _registers.StackPointer,
         ProgramCounter: _registers.ProgramCounter,
-        InterruptMaster: _interruptMaster);
+        InterruptMaster: _interruptMaster.Value,
+        Halted: _halted);
 
     public ulong Step()
     {
-        if (TryHandleInterrupt(out var ticks))
-        {
-            _ticks += ticks;
-            return ticks;
-        }
-
-        if (_halted)
-        {
-            _ticks++;
-            return 1;
-        }
-
-        var opcode = FetchByte();
-
-        if (Instruction.FromOpcode(opcode) is not Instruction instruction)
-            throw InvalidOpcode.Create(opcode, (ushort)(_registers.ProgramCounter - 1));
-
-        // Dispatch an enqueued enable interrupt
-        _dispatchInterruptMaster?.Invoke();
-
-        ticks = Execute(instruction);
+        var ticks = Advance();
         _ticks += ticks;
         return ticks;
     }
 
+    public ulong Advance()
+    {
+        if (TryHandleInterrupt(out var ticks))
+            return ticks;
+
+        if (TryHandleHalt(out ticks))
+            return ticks;
+
+        var opcode = GetOpcode();
+
+        if (Instruction.FromOpcode(opcode) is not Instruction instruction)
+            throw InvalidOpcode.Create(opcode, (ushort)(_registers.ProgramCounter - 1));
+
+        ticks = Execute(instruction);
+        _interruptMaster.Update();
+
+        return ticks;
+    }
+
+    // Halt & Interrupts
     private bool TryHandleInterrupt(out ulong ticks)
     {
-        ticks = 0;
-        if (!_interruptMaster)
+        ticks = 5;
+
+        if (!_interruptMaster.Value)
             return false;       // No interrupts allowed
 
         var pendingInterrupts = GetPendingInterrupts();
-
         if (pendingInterrupts == 0)
             return false;       // No interrupts are pending
 
         HandleInterrupt(pendingInterrupts);
-        ticks = 5;
         return true;
+    }
+
+    private bool TryHandleHalt(out ulong ticks)
+    {
+        ticks = 1;
+
+        if (!_halted)
+            return false;       // Not in halted state
+
+        if (_interruptMaster.Value)
+            return true;        // Wait for an interrupt
+
+        if (GetPendingInterrupts() != 0)
+        {
+            _halted = false;    // Wake up on pending interrupt (but not handle it)
+            return false;
+        }
+
+        return true;            // Keep in halting state
     }
 
     private byte GetPendingInterrupts()
@@ -101,13 +119,6 @@ public class Cpu
         var interruptEnables = _bus.Read(InterruptEnablePointer);
         var interruptFlags = _bus.Read(InterruptFlagPointer);
         return (byte)(interruptEnables & interruptFlags);
-    }
-
-    private void AcknowledgeInterrupt(int index)
-    {
-        var interruptFlags = _bus.Read(InterruptFlagPointer);
-        interruptFlags = BinaryUtil.SetBit(interruptFlags, index, false);
-        _bus.Write(InterruptFlagPointer, interruptFlags);
     }
 
     private void HandleInterrupt(byte pendingInterrupts)
@@ -121,8 +132,8 @@ public class Cpu
         // Disable its requested flag
         AcknowledgeInterrupt(index);
 
-        // Disable master flag (Prevent others)
-        _interruptMaster = false;
+        // Disable master flag immediately (Prevent others)
+        _interruptMaster.Force(false);
 
         // Call the address of the interrupt
         Span<ushort> interruptsSources = [0x40, 0x48, 0x50, 0x58, 0x60];
@@ -131,6 +142,25 @@ public class Cpu
 
         // Interrupts resume execution
         _halted = false;
+    }
+
+    private void AcknowledgeInterrupt(int index)
+    {
+        var interruptFlags = _bus.Read(InterruptFlagPointer);
+        interruptFlags = BinaryUtil.SetBit(interruptFlags, index, false);
+        _bus.Write(InterruptFlagPointer, interruptFlags);
+    }
+
+    // Execution utility
+    private byte GetOpcode()
+    {
+        if (_bufferedOpcode is byte opcode)
+        {
+            _bufferedOpcode = null;
+            return opcode;
+        }
+
+        return FetchByte();
     }
 
     private byte FetchByte() => _bus.Read(_registers.ProgramCounter++);
@@ -237,12 +267,7 @@ public class Cpu
 
     private static bool IsBorrowBit4(int oldValue, int decrement) => ((oldValue & 0x000F) - (decrement & 0x000F)) < 0;
 
-    private void DispatchEnableInterruptMaster()
-    {
-        _interruptMaster = true;
-        _dispatchInterruptMaster = null;
-    }
-
+    // Instruction execution
     private ulong Execute(Instruction inst) => inst switch
     {
         // Misc
@@ -370,18 +395,43 @@ public class Cpu
     }
 
     // Interrupt
-    private ulong Halt(Instruction.Halt _) => throw new NotImplementedException("[TODO] Halt is currently not supported");
+    private ulong Halt(Instruction.Halt _)
+    {
+        _halted = true;
+
+        // Halt bug
+        if (!_interruptMaster.Value && GetPendingInterrupts() != 0)
+        {
+            // Halt immediately exits on the bugged case
+            _halted = false;
+
+            var previousOpcode = _bus.Read((ushort)(_registers.ProgramCounter - 2));
+            var nextOpcode = _bus.Read(_registers.ProgramCounter);
+
+            if (Instruction.FromOpcode(previousOpcode) is Instruction.EnableInterrupt)
+            {
+                // Interrupt will get fired and must return to the halt itself
+                _registers.ProgramCounter--;
+            }
+            else
+            {
+                // Regular duplication bug -> cpu immediately wakes up and next byte gets executed twice
+                _bufferedOpcode = nextOpcode;
+            }
+        }
+
+        return 1;
+    }
 
     private ulong EnableInterrupt(Instruction.EnableInterrupt _)
     {
-        // Enqueue an enable interrupt
-        _dispatchInterruptMaster = DispatchEnableInterruptMaster;
+        _interruptMaster.Enque(true, 1);    // Delay for one step
         return 1;
     }
 
     private ulong DisableInterrupt(Instruction.DisableInterrupt _)
     {
-        _interruptMaster = false;
+        _interruptMaster.Enque(false, 0);
         return 1;
     }
 
@@ -874,7 +924,7 @@ public class Cpu
     private ulong ReturnInterrupt(Instruction.ReturnInterrupt _)
     {
         DoReturn();
-        _interruptMaster = true;    // Is immediately after the return
+        _interruptMaster.Enque(true, 0);    // Is immediately after the return
         return 4;
     }
 
