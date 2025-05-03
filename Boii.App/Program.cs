@@ -1,6 +1,7 @@
 ﻿using Boii.Graphics;
 using Boii.IO;
 using Boii.Processing;
+using Boii.Raylib;
 
 // Args parsing
 if (args.Length < 1)
@@ -28,6 +29,7 @@ if (cart is null)
 var vram = VideoRandomAccessMemory.Create();
 var objectAttributeMemory = ObjectAttributeMemory.Create();
 
+var window = Window.Create($"boii - {cart.Header.Title}", 5, new());
 
 // Inject the components into the global memory bus
 bus.CartridgeRom = cart.ReadOnlyMemory;
@@ -39,7 +41,15 @@ bus.ObjectAttributeMemory = objectAttributeMemory;
 var cpu = Cpu.Create(bus);
 
 // Run the emulated hardware
-while (true)
+window.Open();
+try
 {
-    cpu.Step();
+    while (!window.ShouldClose())
+    {
+        cpu.Step();
+    }
+}
+finally
+{
+    window.Close();
 }
