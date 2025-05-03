@@ -53,18 +53,18 @@ public class Cpu
         ProgramCounter: _registers.ProgramCounter,
         InterruptMaster: _interruptMaster);
 
-    public void Step()
+    public ulong Step()
     {
         if (TryHandleInterrupt(out var ticks))
         {
             _ticks += ticks;
-            return;
+            return ticks;
         }
 
         if (_halted)
         {
             _ticks++;
-            return;
+            return 1;
         }
 
         var opcode = FetchByte();
@@ -75,7 +75,9 @@ public class Cpu
         // Dispatch an enqueued enable interrupt
         _dispatchInterruptMaster?.Invoke();
 
-        _ticks += Execute(instruction);
+        ticks = Execute(instruction);
+        _ticks += ticks;
+        return ticks;
     }
 
     private bool TryHandleInterrupt(out ulong ticks)
@@ -84,30 +86,40 @@ public class Cpu
         if (!_interruptMaster)
             return false;       // No interrupts allowed
 
-        var interruptEnables = _bus.Read(InterruptEnablePointer);
-        var interruptFlags = _bus.Read(InterruptFlagPointer);
-        var firedInterrupts = (byte)(interruptEnables & interruptFlags);
+        var pendingInterrupts = GetPendingInterrupts();
 
-        if (firedInterrupts == 0)
-            return false;       // No interrupts are fired
+        if (pendingInterrupts == 0)
+            return false;       // No interrupts are pending
 
-        HandleInterrupt(firedInterrupts);
+        HandleInterrupt(pendingInterrupts);
         ticks = 5;
         return true;
     }
 
-    private void HandleInterrupt(byte firedInterrupts)
+    private byte GetPendingInterrupts()
     {
-        // Get the interrupt with the highest priority
-        var index = Enumerable.Range(0, 5)
-            .Select(idx => (BinaryUtil.GetBit(firedInterrupts, idx), idx))
-            .First(x => x.Item1)
-            .idx;
+        var interruptEnables = _bus.Read(InterruptEnablePointer);
+        var interruptFlags = _bus.Read(InterruptFlagPointer);
+        return (byte)(interruptEnables & interruptFlags);
+    }
 
-        // Disable its requested flag (acknowledge)
+    private void AcknowledgeInterrupt(int index)
+    {
         var interruptFlags = _bus.Read(InterruptFlagPointer);
         interruptFlags = BinaryUtil.SetBit(interruptFlags, index, false);
         _bus.Write(InterruptFlagPointer, interruptFlags);
+    }
+
+    private void HandleInterrupt(byte pendingInterrupts)
+    {
+        // Get the interrupt with the highest priority
+        var index = Enumerable.Range(0, 5)
+            .Select(idx => (BinaryUtil.GetBit(pendingInterrupts, idx), idx))
+            .First(x => x.Item1)
+            .idx;
+
+        // Disable its requested flag
+        AcknowledgeInterrupt(index);
 
         // Disable master flag (Prevent others)
         _interruptMaster = false;
