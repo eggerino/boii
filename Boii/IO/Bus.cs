@@ -24,36 +24,28 @@ public class Bus : IGenericIO
     private static readonly Range IoRegistersRange = new(0xFF00, 0xFF80);
     private static readonly Range HighRamRange = new(0xFF80, 0xFFFF);
 
-    private readonly IGenericIO _cartridgeRom;
-    private readonly IGenericIO _vram;
-    private readonly IGenericIO _cartridgeRam;
+    public IGenericIO? CartridgeRom { get; set; }
+    public IGenericIO? VideoRam { get; set; }
+    public IGenericIO? CartridgeRam { get; set; }
     private readonly ArrayMemory _workRam = ArrayMemory.Create("WRAM", 0x2000);
-    private readonly IGenericIO _objectAttributeMemory;
-    private readonly IGenericIO _ioRegisters;
+    public IGenericIO? ObjectAttributeMemory { get; set; }
+    public IGenericIO? IoRegisters { get; set; }
     private readonly ArrayMemory _highRam = ArrayMemory.Create("HRAM", 0x007F);
     private byte _interruptEnable = 0;
 
-    private Bus(IGenericIO cartridgeRom, IGenericIO vram, IGenericIO cartridgeRam, IGenericIO objectAttributeMemory, IGenericIO ioRegisters)
-    {
-        _cartridgeRom = cartridgeRom;
-        _vram = vram;
-        _cartridgeRam = cartridgeRam;
-        _objectAttributeMemory = objectAttributeMemory;
-        _ioRegisters = ioRegisters;
-    }
+    private Bus() { }
 
-    public static Bus Create(IGenericIO cartridgeRom, IGenericIO vram, IGenericIO cartridgeRam, IGenericIO objectAttributeMemory, IGenericIO ioRegisters) =>
-        new(cartridgeRom, vram, cartridgeRam, objectAttributeMemory, ioRegisters);
+    public static Bus CreateWithoutLinks() => new();
 
     public byte Read(ushort address) => address switch
     {
-        var x when CartridgeRomRange.IsIn(x, out var i) => _cartridgeRom.Read(i),
-        var x when VramRange.IsIn(x, out var i) => _vram.Read(i),
-        var x when CartridgeRamRange.IsIn(x, out var i) => _cartridgeRam.Read(i),
+        var x when CartridgeRomRange.IsIn(x, out var i) && CartridgeRom is not null => CartridgeRom.Read(i),
+        var x when VramRange.IsIn(x, out var i) && VideoRam is not null => VideoRam.Read(i),
+        var x when CartridgeRamRange.IsIn(x, out var i) && CartridgeRam is not null => CartridgeRam.Read(i),
         var x when WorkRamRange.IsIn(x, out var i) => _workRam.Read(i),
         var x when EchoRamRange.IsIn(x, out var i) => _workRam.Read(i),     // Mirrors wram
-        var x when ObjectAttributeMemoryRange.IsIn(x, out var i) => _objectAttributeMemory.Read(i),
-        var x when IoRegistersRange.IsIn(x, out var i) => _ioRegisters.Read(i),
+        var x when ObjectAttributeMemoryRange.IsIn(x, out var i) && ObjectAttributeMemory is not null => ObjectAttributeMemory.Read(i),
+        var x when IoRegistersRange.IsIn(x, out var i) && IoRegisters is not null => IoRegisters.Read(i),
         var x when HighRamRange.IsIn(x, out var i) => _highRam.Read(i),
         0xFFFF => _interruptEnable,
         _ => throw SegmentationFault.Create($"{nameof(Bus)}.{nameof(Read)}", address),
@@ -61,20 +53,20 @@ public class Bus : IGenericIO
 
     public void Write(ushort address, byte value)
     {
-        if (CartridgeRomRange.IsIn(address, out var x))
-            _cartridgeRom.Write(x, value);
-        else if (VramRange.IsIn(address, out x))
-            _vram.Write(x, value);
-        else if (CartridgeRamRange.IsIn(address, out x))
-            _cartridgeRam.Write(x, value);
+        if (CartridgeRomRange.IsIn(address, out var x) && CartridgeRom is not null)
+            CartridgeRom.Write(x, value);
+        else if (VramRange.IsIn(address, out x) && VideoRam is not null)
+            VideoRam.Write(x, value);
+        else if (CartridgeRamRange.IsIn(address, out x) && CartridgeRam is not null)
+            CartridgeRam.Write(x, value);
         else if (WorkRamRange.IsIn(address, out x))
             _workRam.Write(x, value);
         else if (EchoRamRange.IsIn(address, out x))
             _workRam.Write(x, value);
-        else if (ObjectAttributeMemoryRange.IsIn(address, out x))
-            _objectAttributeMemory.Write(x, value);
-        else if (IoRegistersRange.IsIn(address, out x))
-            _ioRegisters.Write(x, value);
+        else if (ObjectAttributeMemoryRange.IsIn(address, out x) && ObjectAttributeMemory is not null)
+            ObjectAttributeMemory.Write(x, value);
+        else if (IoRegistersRange.IsIn(address, out x) && IoRegisters is not null)
+            IoRegisters.Write(x, value);
         else if (HighRamRange.IsIn(address, out x))
             _highRam.Write(x, value);
         else if (address == 0xFFFF)

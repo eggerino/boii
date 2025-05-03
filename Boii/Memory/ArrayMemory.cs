@@ -1,5 +1,4 @@
 using Boii.Abstractions;
-using Boii.Errors;
 
 namespace Boii.Memory;
 
@@ -14,19 +13,7 @@ public class ArrayMemory : IGenericIO
 
     public static ArrayMemory From(string location, byte[] buffer) => new(location, buffer);
 
-    public byte Read(ushort address)
-    {
-        if (address >= _buffer.Length)
-            throw SegmentationFault.Create(_location, address);
-        
-        return _buffer[address];
-    }
+    public byte Read(ushort address) => BufferAccesser.Read(_buffer, address, _location);
 
-    public void Write(ushort address, byte value)
-    {
-        if (address >= _buffer.Length)
-            throw SegmentationFault.Create(_location, address);
-
-        _buffer[address] = value;
-    }
+    public void Write(ushort address, byte value) => BufferAccesser.Write(_buffer, address, value, _location);
 }

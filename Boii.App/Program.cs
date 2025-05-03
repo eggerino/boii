@@ -1,5 +1,5 @@
-﻿using Boii.IO;
-using Boii.Memory;
+﻿using Boii.Graphics;
+using Boii.IO;
 using Boii.Processing;
 
 // Args parsing
@@ -11,6 +11,8 @@ if (args.Length < 1)
 var romPath = args[0];
 
 // Setup the components
+var bus = Bus.CreateWithoutLinks();
+
 var (cart, errors) = Cartridge.FromFile(romPath, new());
 if (cart is null)
 {
@@ -23,12 +25,16 @@ if (cart is null)
     Environment.Exit(1);
 }
 
-var bus = Bus.Create(
-    cartridgeRom: cart.ReadOnlyMemory,
-    vram: ArrayMemory.Create("VRAM", 0x2000),
-    cartridgeRam: cart.RandomAccessMemory,
-    objectAttributeMemory: ArrayMemory.Create("VRAM", 0x2000),
-    ioRegisters: ArrayMemory.Create("VRAM", 0x2000));
+var vram = VideoRandomAccessMemory.Create();
+var objectAttributeMemory = ObjectAttributeMemory.Create();
+
+
+// Inject the components into the global memory bus
+bus.CartridgeRom = cart.ReadOnlyMemory;
+bus.VideoRam = vram;
+bus.CartridgeRam = cart.RandomAccessMemory;
+bus.ObjectAttributeMemory = objectAttributeMemory;
+// TODO IO registers
 
 var cpu = Cpu.Create(bus);
 
