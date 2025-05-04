@@ -7,15 +7,15 @@ namespace Boii.Graphics;
 public class Ppu : ISlaveComponent
 {
     private ulong _dots = 0;    // 4 dots = 1 tick = 1 M-Cycle
-    private readonly LcdIo _io;
+    private readonly LcdController _controller;
     private readonly IRenderer _renderer;
     private readonly VideoRandomAccessMemory _vram;
     private readonly ObjectAttributeMemory _oam;
 
-    private Ppu(LcdIo io, IRenderer renderer, VideoRandomAccessMemory vram, ObjectAttributeMemory oam) =>
-        (_io, _renderer, _vram, _oam) = (io, renderer, vram, oam);
+    private Ppu(LcdController controller, IRenderer renderer, VideoRandomAccessMemory vram, ObjectAttributeMemory oam) =>
+        (_controller, _renderer, _vram, _oam) = (controller, renderer, vram, oam);
 
-    public static Ppu Create(LcdIo io, IRenderer renderer, VideoRandomAccessMemory vram, ObjectAttributeMemory oam) => new(io, renderer, vram, oam);
+    public static Ppu Create(LcdController io, IRenderer renderer, VideoRandomAccessMemory vram, ObjectAttributeMemory oam) => new(io, renderer, vram, oam);
 
     public void Advance(ulong ticks)
     {
@@ -37,10 +37,10 @@ public class Ppu : ISlaveComponent
             };
 
             if (currentLine != previousLine)
-                _io.SetCurrentHorizontalLine(currentLine);  // On line change
+                _controller.SetCurrentHorizontalLine(currentLine);  // On line change
             
             if (currentMode != previousMode)
-                _io.SetPpuMode((ushort)currentMode);        // On mode change
+                _controller.SetPpuMode((ushort)currentMode);        // On mode change
 
             if (currentMode != previousMode && currentMode == 3)
                 RenderLine(currentLine);                    // On entering mode 3 (draw pixels)

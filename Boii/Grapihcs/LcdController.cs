@@ -6,7 +6,7 @@ using Boii.Util;
 
 namespace Boii.Graphics;
 
-public class LcdIo : IGenericIO, ISlaveComponent
+public class LcdController : IGenericIO, ISlaveComponent
 {
     private readonly byte[] _buffer = new byte[12];
     private int _previousOamDmaSource = 0;
@@ -14,9 +14,9 @@ public class LcdIo : IGenericIO, ISlaveComponent
 
     private readonly IGenericIO _bus;
 
-    private LcdIo(IGenericIO bus) => _bus = bus;
+    private LcdController(IGenericIO bus) => _bus = bus;
 
-    public static LcdIo Create(IGenericIO bus) => new(bus);
+    public static LcdController Create(IGenericIO bus) => new(bus);
 
     public byte Read(ushort address) => BufferAccesser.Read(_buffer, address, "LcdIo");
 
@@ -41,7 +41,7 @@ public class LcdIo : IGenericIO, ISlaveComponent
             foreach (var i in Enumerable.Range(0, 0xA0))
             {
                 var value = _bus.Read((ushort)(_previousOamDmaSource << 8 | i));
-                _bus.Write((ushort)(0xFE + i), value);
+                _bus.Write((ushort)(0xFE00 + i), value);
             }
         }
     }
@@ -75,14 +75,14 @@ public class LcdIo : IGenericIO, ISlaveComponent
         var stat = _buffer[1];
         stat = BinaryUtil.SetBit(stat, 0, low);
         stat = BinaryUtil.SetBit(stat, 1, high);
-        _buffer[0] = stat;
+        _buffer[1] = stat;
 
         if (IsMode0Condition && value == 0)
             RequestStatInterrupt();
-        
+
         if (IsMode1Condition && value == 1)
             RequestStatInterrupt();
-        
+
         if (IsMode2Condition && value == 2)
             RequestStatInterrupt();
     }
