@@ -11,8 +11,8 @@ public static class Tile
         var low = tile[2 * y];
         var high = tile[2 * y + 1];
 
-        var lowBit = (low >> x) & 1;
-        var highBit = (high >> x) & 1;
+        var lowBit = (low >> (7 - x)) & 1;
+        var highBit = (high >> (7 - x)) & 1;
 
         return (highBit << 1) | lowBit;
     }
