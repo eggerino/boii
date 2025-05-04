@@ -4,7 +4,6 @@ using RL = Raylib_cs.Raylib;
 using RColor = Raylib_cs.Color;
 using BColor = Boii.Abstractions.Color;
 using SColor = System.Drawing.Color;
-using System;
 
 namespace Boii.Raylib;
 
@@ -33,7 +32,11 @@ public class Window : IRenderer, IGamepad
         return window;
     }
 
-    public void Open() => RL.InitWindow(_scale * BaseWidth, _scale * BaseHeight, _title);
+    public void Open()
+    {
+        RL.InitWindow(_scale * BaseWidth, _scale * BaseHeight, _title);
+        RL.SetTargetFPS(60);
+    }
 
     public bool ShouldClose() => RL.WindowShouldClose();
 
