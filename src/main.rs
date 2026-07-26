@@ -1,3 +1,14 @@
+use boii::memory::{ArrayBuffer, Rom};
+
 fn main() {
-    println!("Hello, world!");
+    let size = 1024;
+    let buf = ArrayBuffer::new(size);
+
+
+
+    println!("Hello {}!", read(&buf));
+}
+
+fn read(rom: &impl Rom) -> u8 {
+    rom.read(0).unwrap()
 }
