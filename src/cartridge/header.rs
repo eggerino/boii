@@ -1,16 +1,16 @@
-const NINTENDO_LOGO_PTR: usize = 0x0104;
-const TITLE_PTR: usize = 0x0134;
-const CGB_FLAG_PTR: usize = 0x0143;
-const NEW_LICENSEE_CODE_PTR: usize = 0x0144;
-const SGB_FLAG_PTR: usize = 0x0146;
-const CARTRIDGE_TYPE_PTR: usize = 0x0147;
-const ROM_SIZE_PTR: usize = 0x0148;
-const RAM_SIZE_PTR: usize = 0x0149;
-const DESTINATION_CODE_PTR: usize = 0x014A;
-const OLD_LICENSEE_CODE_PTR: usize = 0x014B;
-const ROM_VERSION_PTR: usize = 0x014C;
-const HEADER_CHECKSUM_PTR: usize = 0x014D;
-const GLOBAL_CHECKSUM_PTR: usize = 0x014E;
+const NINTENDO_LOGO_ADDR: usize = 0x0104;
+const TITLE_ADDR: usize = 0x0134;
+const CGB_FLAG_ADDR: usize = 0x0143;
+const NEW_LICENSEE_CODE_ADDR: usize = 0x0144;
+const SGB_FLAG_ADDR: usize = 0x0146;
+const CARTRIDGE_TYPE_ADDR: usize = 0x0147;
+const ROM_SIZE_ADDR: usize = 0x0148;
+const RAM_SIZE_ADDR: usize = 0x0149;
+const DESTINATION_CODE_ADDR: usize = 0x014A;
+const OLD_LICENSEE_CODE_ADDR: usize = 0x014B;
+const ROM_VERSION_ADDR: usize = 0x014C;
+const HEADER_CHECKSUM_ADDR: usize = 0x014D;
+const GLOBAL_CHECKSUM_ADDR: usize = 0x014E;
 
 const HEADER_SIZE: usize = 0x0150;
 const TITLE_SIZE: usize = 0x0010;
@@ -24,19 +24,19 @@ const NINTENDO_LOGO_LITERAL: [u8; 0x0030] = [
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
-    NoHeader,
-    NoNintendoLogo,
-    InvalidTitleSection,
+    NoHeader { rom_size: usize },
+    InvalidNintendoLogo(Box<[u8]>),
+    InvalidTitleSection(Box<[u8]>),
     InvalidCartridgeType(u8),
     UnknownRomSize(u8),
     UnknownRamSize(u8),
     InvalidDestionationCode(u8),
-    NotMatchingRomSizes { expected: usize, actual: usize },
+    MismatchingRomSizes { expected: usize, actual: usize },
     ViolatedHeaderChecksum { expected: u8, actual: u8 },
     ViolatedGlobalChecksum { expected: u16, actual: u16 },
 }
 
-type Result<T> = core::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, PartialEq)]
 pub enum CgbFlag {
@@ -107,13 +107,8 @@ pub struct ParseConfig {
 
 impl Header {
     pub fn parse(rom: &[u8], config: &ParseConfig) -> Result<Self> {
-        if !contains_header(rom) {
-            return Err(Error::NoHeader);
-        }
-
-        if config.check_nintento_logo && !has_nintendo_logo(rom) {
-            return Err(Error::NoNintendoLogo);
-        }
+        // Always check the header size to safely read from the address of the spec
+        check_header_size(rom)?;
 
         let title = parse_title(rom)?;
         let cgb_flag = parse_cgb_flag(rom);
@@ -128,31 +123,20 @@ impl Header {
         let header_checksum = parse_header_checksum(rom);
         let global_checksum = parse_global_checksum(rom);
 
-        if config.check_matching_rom_sizes && rom_size != rom.len() {
-            return Err(Error::NotMatchingRomSizes {
-                expected: rom_size,
-                actual: rom.len(),
-            });
+        if config.check_nintento_logo {
+            check_nintendo_logo(rom)?;
+        }
+
+        if config.check_matching_rom_sizes {
+            check_rom_size(rom, rom_size)?;
         }
 
         if config.check_header_checksum {
-            let actual = compute_header_checksum(rom);
-            if header_checksum != actual {
-                return Err(Error::ViolatedHeaderChecksum {
-                    expected: header_checksum,
-                    actual,
-                });
-            }
+            check_header_checksum(rom, header_checksum)?;
         }
 
         if config.check_global_checksum {
-            let actual = compute_global_checksum(rom);
-            if global_checksum != actual {
-                return Err(Error::ViolatedGlobalChecksum {
-                    expected: global_checksum,
-                    actual,
-                });
-            }
+            check_global_checksum(rom, global_checksum)?;
         }
 
         let header = Self {
@@ -172,42 +156,53 @@ impl Header {
     }
 }
 
-fn contains_header(rom: &[u8]) -> bool {
-    rom.len() >= HEADER_SIZE
+fn check_header_size(rom: &[u8]) -> Result<()> {
+    if rom.len() < HEADER_SIZE {
+        Err(Error::NoHeader {
+            rom_size: rom.len(),
+        })
+    } else {
+        Ok(())
+    }
 }
 
-fn has_nintendo_logo(rom: &[u8]) -> bool {
-    let logo = &rom[NINTENDO_LOGO_PTR..NINTENDO_LOGO_PTR + NINTENDO_LOGO_LITERAL.len()];
-    logo == NINTENDO_LOGO_LITERAL
+fn check_nintendo_logo(rom: &[u8]) -> Result<()> {
+    let logo = &rom[NINTENDO_LOGO_ADDR..NINTENDO_LOGO_ADDR + NINTENDO_LOGO_LITERAL.len()];
+    if logo == NINTENDO_LOGO_LITERAL {
+        Ok(())
+    } else {
+        Err(Error::InvalidNintendoLogo(logo.into()))
+    }
 }
 
 fn parse_title(rom: &[u8]) -> Result<String> {
-    let mut title_raw = &rom[TITLE_PTR..TITLE_PTR + TITLE_SIZE];
-
     // This area of the rom is interpreted differently in a backwards compatible fashion.
     // Originally it represents the title as an ascii encoded string with trailing zeros as padding.
     // The last byte is later reused as the cgb flag. The 8-bit (which makes this byte an illegal ascii value)
     // is used as a discrimitor, whether the last bytes if the cgb flag or part of the title.
+    let raw = &rom[TITLE_ADDR..TITLE_ADDR + TITLE_SIZE];
+
+    let mut title = raw;
 
     // Chop off the cgb flag if its present
-    if title_raw[TITLE_SIZE - 1] & 0b1000_0000 > 0 {
-        title_raw = &title_raw[..TITLE_SIZE - 1];
+    if title[TITLE_SIZE - 1] & 0b1000_0000 > 0 {
+        title = &title[..TITLE_SIZE - 1];
     }
 
     // Chop off the trailing zero bytes added for padding
-    while let Some(x) = title_raw.last()
+    while let Some(x) = title.last()
         && *x == 0
     {
-        title_raw = &title_raw[..title_raw.len() - 1];
+        title = &title[..title.len() - 1];
     }
 
-    str::from_utf8(title_raw)
+    str::from_utf8(title)
         .map(String::from)
-        .map_err(|_| Error::InvalidTitleSection)
+        .map_err(|_| Error::InvalidTitleSection(raw.into()))
 }
 
 fn parse_cgb_flag(rom: &[u8]) -> CgbFlag {
-    let flag = rom[CGB_FLAG_PTR];
+    let flag = rom[CGB_FLAG_ADDR];
 
     // Check if the flag is part of the title (8-bit is the discrimator, see `parse_title` for more details)
     if flag & 0b1000_0000 == 0 {
@@ -224,9 +219,10 @@ fn parse_cgb_flag(rom: &[u8]) -> CgbFlag {
 }
 
 fn parse_new_licensee_code(rom: &[u8]) -> Option<String> {
-    let code =
-        str::from_utf8(&rom[NEW_LICENSEE_CODE_PTR..NEW_LICENSEE_CODE_PTR + NEW_LICENSEE_CODE_SIZE])
-            .ok()?;
+    let code = str::from_utf8(
+        &rom[NEW_LICENSEE_CODE_ADDR..NEW_LICENSEE_CODE_ADDR + NEW_LICENSEE_CODE_SIZE],
+    )
+    .ok()?;
 
     let name = match code {
         "01" => "Nintendo Research & Development 1",
@@ -299,7 +295,7 @@ fn parse_new_licensee_code(rom: &[u8]) -> Option<String> {
 }
 
 fn parse_sgb_flag(rom: &[u8]) -> SgbFlag {
-    let flag = rom[SGB_FLAG_PTR];
+    let flag = rom[SGB_FLAG_ADDR];
     match flag {
         0x03 => SgbFlag::Use,
         _ => SgbFlag::Ignore(flag),
@@ -322,7 +318,7 @@ fn parse_cartridge_type(rom: &[u8]) -> Result<CartridgeType> {
     };
 
     use MemoryBlockControllerType as MBC;
-    match rom[CARTRIDGE_TYPE_PTR] {
+    match rom[CARTRIDGE_TYPE_ADDR] {
         0x00 => (),
         0x01 => ct.mbc = MBC::One, // MBC1
         0x02 => {
@@ -422,7 +418,7 @@ fn parse_cartridge_type(rom: &[u8]) -> Result<CartridgeType> {
 }
 
 fn parse_rom_size(rom: &[u8]) -> Result<usize> {
-    let size = match rom[ROM_SIZE_PTR] {
+    let size = match rom[ROM_SIZE_ADDR] {
         0x00 => 32 * 1024,
         0x01 => 64 * 1024,
         0x02 => 128 * 1024,
@@ -437,8 +433,19 @@ fn parse_rom_size(rom: &[u8]) -> Result<usize> {
     Ok(size)
 }
 
+fn check_rom_size(rom: &[u8], rom_size: usize) -> Result<()> {
+    if rom_size == rom.len() {
+        Ok(())
+    } else {
+        Err(Error::MismatchingRomSizes {
+            expected: rom_size,
+            actual: rom.len(),
+        })
+    }
+}
+
 fn parse_ram_size(rom: &[u8]) -> Result<usize> {
-    let size = match rom[RAM_SIZE_PTR] {
+    let size = match rom[RAM_SIZE_ADDR] {
         0x00 => 0,
         0x02 => 8 * 1024,
         0x03 => 32 * 1024,
@@ -450,7 +457,7 @@ fn parse_ram_size(rom: &[u8]) -> Result<usize> {
 }
 
 fn parse_destincation_code(rom: &[u8]) -> Result<DestinationCode> {
-    let code = match rom[DESTINATION_CODE_PTR] {
+    let code = match rom[DESTINATION_CODE_ADDR] {
         0x00 => DestinationCode::Japan,
         0x01 => DestinationCode::Oversea,
         x => Err(Error::InvalidDestionationCode(x))?,
@@ -459,7 +466,7 @@ fn parse_destincation_code(rom: &[u8]) -> Result<DestinationCode> {
 }
 
 fn parse_old_licensee_code(rom: &[u8], new_code: Option<String>) -> Option<String> {
-    let code = rom[OLD_LICENSEE_CODE_PTR];
+    let code = rom[OLD_LICENSEE_CODE_ADDR];
     if code == 33 {
         return new_code;
     }
@@ -616,32 +623,42 @@ fn parse_old_licensee_code(rom: &[u8], new_code: Option<String>) -> Option<Strin
 }
 
 fn parse_rom_version(rom: &[u8]) -> u8 {
-    rom[ROM_VERSION_PTR]
+    rom[ROM_VERSION_ADDR]
 }
 
 fn parse_header_checksum(rom: &[u8]) -> u8 {
-    rom[HEADER_CHECKSUM_PTR]
+    rom[HEADER_CHECKSUM_ADDR]
+}
+
+fn check_header_checksum(rom: &[u8], expected: u8) -> Result<()> {
+    let mut actual: u8 = 0;
+    for addr in 0x0134..=0x014C {
+        actual = actual.wrapping_sub(rom[addr]).wrapping_sub(1);
+    }
+
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(Error::ViolatedHeaderChecksum { expected, actual })
+    }
 }
 
 fn parse_global_checksum(rom: &[u8]) -> u16 {
-    (rom[GLOBAL_CHECKSUM_PTR] as u16) << 8 | rom[GLOBAL_CHECKSUM_PTR + 1] as u16
+    (rom[GLOBAL_CHECKSUM_ADDR] as u16) << 8 | rom[GLOBAL_CHECKSUM_ADDR + 1] as u16
 }
 
-fn compute_header_checksum(rom: &[u8]) -> u8 {
-    let mut checksum: u8 = 0;
-    for addr in 0x0134..=0x014C {
-        checksum = checksum.wrapping_sub(rom[addr]).wrapping_sub(1);
-    }
-    checksum
-}
-
-fn compute_global_checksum(rom: &[u8]) -> u16 {
-    let global_checksum_bytes =
-        rom[GLOBAL_CHECKSUM_PTR] as u16 + rom[GLOBAL_CHECKSUM_PTR + 1] as u16;
-
-    rom.iter()
+fn check_global_checksum(rom: &[u8], expected: u16) -> Result<()> {
+    let actual = rom
+        .iter()
         .fold(0, |acc: u16, x| acc.wrapping_add(*x as u16))
-        .wrapping_sub(global_checksum_bytes)
+        .wrapping_sub(rom[GLOBAL_CHECKSUM_ADDR] as u16)
+        .wrapping_sub(rom[GLOBAL_CHECKSUM_ADDR + 1] as u16);
+
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(Error::ViolatedGlobalChecksum { expected, actual })
+    }
 }
 
 #[cfg(test)]

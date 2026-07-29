@@ -5,44 +5,27 @@ pub enum Error {
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-pub trait Rom {
+pub trait Read {
     fn read(&self, address: u16) -> Result<u8>;
 }
 
-pub trait Ram: Rom {
+pub trait Write {
     fn write(&mut self, address: u16, value: u8) -> Result<()>;
 }
 
-pub struct ArrayBuffer {
-    buffer: Vec<u8>,
-}
-
-impl ArrayBuffer {
-    pub fn new(size: u16) -> Self {
-        Self {
-            buffer: vec![0; size.into()],
-        }
-    }
-}
-
-impl Rom for ArrayBuffer {
+impl Read for [u8] {
     fn read(&self, address: u16) -> Result<u8> {
-        if address as usize >= self.buffer.len() {
-            Err(Error::SegFault { address })
-        } else {
-            Ok(self.buffer[address as usize])
-        }
+        self.get(address as usize)
+            .map(|x| *x)
+            .ok_or(Error::SegFault { address })
     }
 }
 
-impl Ram for ArrayBuffer {
+impl Write for [u8] {
     fn write(&mut self, address: u16, value: u8) -> Result<()> {
-        if address as usize >= self.buffer.len() {
-            Err(Error::SegFault { address })
-        } else {
-            self.buffer[address as usize] = value;
-            Ok(())
-        }
+        self.get_mut(address as usize)
+            .map(|x| *x = value)
+            .ok_or(Error::SegFault { address })
     }
 }
 
@@ -52,7 +35,7 @@ mod tests {
 
     #[test]
     fn array_buffer_read_write() {
-        let mut buf = ArrayBuffer::new(24);
+        let mut buf = [0; 24];
 
         assert_eq!(buf.read(0), Ok(0));
         assert_eq!(buf.read(23), Ok(0));
