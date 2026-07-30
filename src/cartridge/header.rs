@@ -51,29 +51,29 @@ pub enum SgbFlag {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum MemoryBlockControllerType {
+pub enum MBCType {
     None,
-    One,
-    Two,
-    Three,
-    Five,
-    Six,
-    Seven,
+    MBC1,
+    MBC2,
+    MMM01,
+    MBC3,
+    MBC5,
+    MBC6,
+    MBC7,
+    HuC3,
+    HuC1,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct CartridgeType {
-    pub mbc: MemoryBlockControllerType,
+    pub mbc: MBCType,
     pub ram: bool,
     pub battery: bool,
-    pub mmm01: bool,
     pub timer: bool,
     pub rumble: bool,
     pub sensor: bool,
     pub pocket_camera: bool,
     pub bandai_tama5: bool,
-    pub huc1: bool,
-    pub huc3: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -304,101 +304,97 @@ fn parse_sgb_flag(rom: &[u8]) -> SgbFlag {
 
 fn parse_cartridge_type(rom: &[u8]) -> Result<CartridgeType> {
     let mut ct = CartridgeType {
-        mbc: MemoryBlockControllerType::None,
+        mbc: MBCType::None,
         ram: false,
         battery: false,
-        mmm01: false,
         timer: false,
         rumble: false,
         sensor: false,
         pocket_camera: false,
         bandai_tama5: false,
-        huc1: false,
-        huc3: false,
     };
 
-    use MemoryBlockControllerType as MBC;
     match rom[CARTRIDGE_TYPE_ADDR] {
         0x00 => (),
-        0x01 => ct.mbc = MBC::One, // MBC1
+        0x01 => ct.mbc = MBCType::MBC1, // MBC1
         0x02 => {
-            ct.mbc = MBC::One;
+            ct.mbc = MBCType::MBC1;
             ct.ram = true
         } // MBC1+RAM
         0x03 => {
-            ct.mbc = MBC::One;
+            ct.mbc = MBCType::MBC1;
             ct.ram = true;
             ct.battery = true
         } // MBC1+RAM+BATTERY
-        0x05 => ct.mbc = MBC::Two, // MBC2
+        0x05 => ct.mbc = MBCType::MBC2, // MBC2
         0x06 => {
-            ct.mbc = MBC::Two;
+            ct.mbc = MBCType::MBC2;
             ct.battery = true
         } // MBC2+BATTERY
-        0x08 => ct.ram = true,     // ROM+RAM
+        0x08 => ct.ram = true,          // ROM+RAM
         0x09 => {
             ct.ram = true;
             ct.battery = true
         } // ROM+RAM+BATTERY
-        0x0B => ct.mmm01 = true,   // MMM01
+        0x0B => ct.mbc = MBCType::MMM01, // MMM01
         0x0C => {
-            ct.mmm01 = true;
+            ct.mbc = MBCType::MMM01;
             ct.ram = true
         } // MMM01+RAM
         0x0D => {
-            ct.mmm01 = true;
+            ct.mbc = MBCType::MMM01;
             ct.ram = true;
             ct.battery = true
         } // MMM01+RAM+BATTERY
         0x0F => {
-            ct.mbc = MBC::Three;
+            ct.mbc = MBCType::MBC3;
             ct.timer = true;
             ct.battery = true
         } // MBC3+TIMER+BATTERY
         0x10 => {
-            ct.mbc = MBC::Three;
+            ct.mbc = MBCType::MBC3;
             ct.timer = true;
             ct.ram = true;
             ct.battery = true
         } // MBC3+TIMER+RAM+BATTERY
-        0x11 => ct.mbc = MBC::Three, // MBC3
+        0x11 => ct.mbc = MBCType::MBC3, // MBC3
         0x12 => {
-            ct.mbc = MBC::Three;
+            ct.mbc = MBCType::MBC3;
             ct.ram = true
         } // MBC3+RAM
         0x13 => {
-            ct.mbc = MBC::Three;
+            ct.mbc = MBCType::MBC3;
             ct.ram = true;
             ct.battery = true
         } // MBC3+RAM+BATTERY
-        0x19 => ct.mbc = MBC::Five, // MBC5
+        0x19 => ct.mbc = MBCType::MBC5, // MBC5
         0x1A => {
-            ct.mbc = MBC::Five;
+            ct.mbc = MBCType::MBC5;
             ct.ram = true
         } // MBC5+RAM
         0x1B => {
-            ct.mbc = MBC::Five;
+            ct.mbc = MBCType::MBC5;
             ct.ram = true;
             ct.battery = true
         } // MBC5+RAM+BATTERY
         0x1C => {
-            ct.mbc = MBC::Five;
+            ct.mbc = MBCType::MBC5;
             ct.rumble = true
         } // MBC5+RUMBLE
         0x1D => {
-            ct.mbc = MBC::Five;
+            ct.mbc = MBCType::MBC5;
             ct.rumble = true;
             ct.ram = true
         } // MBC5+RUMBLE+RAM
         0x1E => {
-            ct.mbc = MBC::Five;
+            ct.mbc = MBCType::MBC5;
             ct.rumble = true;
             ct.ram = true;
             ct.battery = true
         } // MBC5+RUMBLE+RAM+BATTERY
-        0x20 => ct.mbc = MBC::Six, // MBC6
+        0x20 => ct.mbc = MBCType::MBC6, // MBC6
         0x22 => {
-            ct.mbc = MBC::Seven;
+            ct.mbc = MBCType::MBC7;
             ct.sensor = true;
             ct.rumble = true;
             ct.ram = true;
@@ -406,9 +402,9 @@ fn parse_cartridge_type(rom: &[u8]) -> Result<CartridgeType> {
         } // MBC7+SENSOR+RUMBLE+RAM+BATTERY
         0xFC => ct.pocket_camera = true, // POCKET CAMERA
         0xFD => ct.bandai_tama5 = true, // BANDAI TAMA5
-        0xFE => ct.huc3 = true,    // HuC3
+        0xFE => ct.mbc = MBCType::HuC3, // HuC3
         0xFF => {
-            ct.huc1 = true;
+            ct.mbc = MBCType::HuC1;
             ct.ram = true;
             ct.battery = true
         } // HuC1+RAM+BATTERY
@@ -684,17 +680,14 @@ mod tests {
             licensee: None,
             sgb_flag: SgbFlag::Ignore(0),
             cartridge_type: CartridgeType {
-                mbc: MemoryBlockControllerType::One,
+                mbc: MBCType::MBC1,
                 ram: false,
                 battery: false,
-                mmm01: false,
                 timer: false,
                 rumble: false,
                 sensor: false,
                 pocket_camera: false,
                 bandai_tama5: false,
-                huc1: false,
-                huc3: false,
             },
             rom_size: 65536,
             ram_size: 0,

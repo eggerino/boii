@@ -1,16 +1,14 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
     cartridge::Cartridge,
     memory::{Error, Read, Write},
 };
 
 pub struct Bus {
-    cartridge: Rc<RefCell<Cartridge>>,
+    cartridge: Cartridge,
 }
 
 impl Bus {
-    pub fn new(cartridge: Rc<RefCell<Cartridge>>) -> Self {
+    pub fn new(cartridge: Cartridge) -> Self {
         Self { cartridge }
     }
 }
@@ -18,14 +16,8 @@ impl Bus {
 impl Read for Bus {
     fn read(&self, address: u16) -> Result<u8, Error> {
         let result = match address {
-            0x0000..0x7FFF => self.cartridge.borrow().rom().read(address),
-            0xA000..0xBFFF => self
-                .cartridge
-                .borrow()
-                .ram()
-                .map(|x| x.read(address))
-                .ok_or(Error::SegFault { address })
-                .flatten(),
+            0x0000..0x7FFF => self.cartridge.rom().read(address),
+            0xA000..0xBFFF => self.cartridge.ram().read(address - 0xA000),
             _ => Err(Error::SegFault { address }),
         };
 
@@ -38,13 +30,8 @@ impl Read for Bus {
 impl Write for Bus {
     fn write(&mut self, address: u16, value: u8) -> Result<(), Error> {
         let result = match address {
-            0xA000..0xBFFF => self
-                .cartridge
-                .borrow_mut()
-                .ram_mut()
-                .map(|x| x.write(address, value))
-                .ok_or(Error::SegFault { address })
-                .flatten(),
+            0x0000..0x7FFF => self.cartridge.rom_mut().write(address, value),
+            0xA000..0xBFFF => self.cartridge.ram_mut().write(address - 0xA000, value),
             _ => Err(Error::SegFault { address }),
         };
 
