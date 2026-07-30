@@ -1,11 +1,11 @@
 use crate::{
-    cartridge::header::{Header, Result},
-    memory::{self, Read, Write},
+    cartridge::header::Header,
+    memory::{Error, Read, Write},
 };
 
 mod header;
 
-pub use header::{Error, ParseConfig};
+pub use header::{ParseConfig, ParseError};
 
 pub struct Cartridge {
     header: Header,
@@ -14,7 +14,7 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn from(rom: Box<[u8]>, config: &ParseConfig) -> Result<Self> {
+    pub fn from(rom: Box<[u8]>, config: &ParseConfig) -> Result<Self, ParseError> {
         let header = Header::parse(&rom, config)?;
         let rom = Rom::from(rom);
         let ram = if header.cartridge_type.ram {
@@ -52,7 +52,7 @@ impl Rom {
 }
 
 impl Read for Rom {
-    fn read(&self, address: u16) -> memory::Result<u8> {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         self.0.read(address)
     }
 }
@@ -66,13 +66,13 @@ impl Ram {
 }
 
 impl Read for Ram {
-    fn read(&self, address: u16) -> memory::Result<u8> {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         self.0.read(address)
     }
 }
 
 impl Write for Ram {
-    fn write(&mut self, address: u16, value: u8) -> memory::Result<()> {
+    fn write(&mut self, address: u16, value: u8) -> Result<(), Error> {
         self.0.write(address, value)
     }
 }

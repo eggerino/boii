@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     cartridge::Cartridge,
-    memory::{Error, Read, Result, Write},
+    memory::{Error, Read, Write},
 };
 
 pub struct Bus {
@@ -16,7 +16,7 @@ impl Bus {
 }
 
 impl Read for Bus {
-    fn read(&self, address: u16) -> Result<u8> {
+    fn read(&self, address: u16) -> Result<u8, Error> {
         let result = match address {
             0x0000..0x7FFF => self.cartridge.borrow().rom().read(address),
             0xA000..0xBFFF => self
@@ -36,7 +36,7 @@ impl Read for Bus {
 }
 
 impl Write for Bus {
-    fn write(&mut self, address: u16, value: u8) -> Result<()> {
+    fn write(&mut self, address: u16, value: u8) -> Result<(), Error> {
         let result = match address {
             0xA000..0xBFFF => self
                 .cartridge

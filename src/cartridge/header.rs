@@ -23,7 +23,7 @@ const NINTENDO_LOGO_LITERAL: [u8; 0x0030] = [
 ];
 
 #[derive(Debug, PartialEq)]
-pub enum Error {
+pub enum ParseError {
     NoHeader { rom_size: usize },
     InvalidNintendoLogo(Box<[u8]>),
     InvalidTitleSection(Box<[u8]>),
@@ -36,7 +36,7 @@ pub enum Error {
     ViolatedGlobalChecksum { expected: u16, actual: u16 },
 }
 
-pub type Result<T> = core::result::Result<T, Error>;
+type Result<T> = core::result::Result<T, ParseError>;
 
 #[derive(Debug, PartialEq)]
 pub enum CgbFlag {
@@ -158,7 +158,7 @@ impl Header {
 
 fn check_header_size(rom: &[u8]) -> Result<()> {
     if rom.len() < HEADER_SIZE {
-        Err(Error::NoHeader {
+        Err(ParseError::NoHeader {
             rom_size: rom.len(),
         })
     } else {
@@ -171,7 +171,7 @@ fn check_nintendo_logo(rom: &[u8]) -> Result<()> {
     if logo == NINTENDO_LOGO_LITERAL {
         Ok(())
     } else {
-        Err(Error::InvalidNintendoLogo(logo.into()))
+        Err(ParseError::InvalidNintendoLogo(logo.into()))
     }
 }
 
@@ -198,7 +198,7 @@ fn parse_title(rom: &[u8]) -> Result<String> {
 
     str::from_utf8(title)
         .map(String::from)
-        .map_err(|_| Error::InvalidTitleSection(raw.into()))
+        .map_err(|_| ParseError::InvalidTitleSection(raw.into()))
 }
 
 fn parse_cgb_flag(rom: &[u8]) -> CgbFlag {
@@ -412,7 +412,7 @@ fn parse_cartridge_type(rom: &[u8]) -> Result<CartridgeType> {
             ct.ram = true;
             ct.battery = true
         } // HuC1+RAM+BATTERY
-        x => Err(Error::InvalidCartridgeType(x))?,
+        x => Err(ParseError::InvalidCartridgeType(x))?,
     };
     Ok(ct)
 }
@@ -428,7 +428,7 @@ fn parse_rom_size(rom: &[u8]) -> Result<usize> {
         0x06 => 2 * 1024 * 1024,
         0x07 => 4 * 1024 * 1024,
         0x08 => 8 * 1024 * 1024,
-        x => Err(Error::UnknownRomSize(x))?,
+        x => Err(ParseError::UnknownRomSize(x))?,
     };
     Ok(size)
 }
@@ -437,7 +437,7 @@ fn check_rom_size(rom: &[u8], rom_size: usize) -> Result<()> {
     if rom_size == rom.len() {
         Ok(())
     } else {
-        Err(Error::MismatchingRomSizes {
+        Err(ParseError::MismatchingRomSizes {
             expected: rom_size,
             actual: rom.len(),
         })
@@ -451,7 +451,7 @@ fn parse_ram_size(rom: &[u8]) -> Result<usize> {
         0x03 => 32 * 1024,
         0x04 => 128 * 1024,
         0x05 => 64 * 1024,
-        x => Err(Error::UnknownRamSize(x))?,
+        x => Err(ParseError::UnknownRamSize(x))?,
     };
     Ok(size)
 }
@@ -460,7 +460,7 @@ fn parse_destincation_code(rom: &[u8]) -> Result<DestinationCode> {
     let code = match rom[DESTINATION_CODE_ADDR] {
         0x00 => DestinationCode::Japan,
         0x01 => DestinationCode::Oversea,
-        x => Err(Error::InvalidDestionationCode(x))?,
+        x => Err(ParseError::InvalidDestionationCode(x))?,
     };
     Ok(code)
 }
@@ -639,7 +639,7 @@ fn check_header_checksum(rom: &[u8], expected: u8) -> Result<()> {
     if expected == actual {
         Ok(())
     } else {
-        Err(Error::ViolatedHeaderChecksum { expected, actual })
+        Err(ParseError::ViolatedHeaderChecksum { expected, actual })
     }
 }
 
@@ -657,7 +657,7 @@ fn check_global_checksum(rom: &[u8], expected: u16) -> Result<()> {
     if expected == actual {
         Ok(())
     } else {
-        Err(Error::ViolatedGlobalChecksum { expected, actual })
+        Err(ParseError::ViolatedGlobalChecksum { expected, actual })
     }
 }
 
@@ -720,7 +720,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(Error::ViolatedGlobalChecksum {
+            Err(ParseError::ViolatedGlobalChecksum {
                 expected: 62768,
                 actual: 45425
             })

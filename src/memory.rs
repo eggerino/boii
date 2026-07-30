@@ -3,7 +3,7 @@ pub enum Error {
     SegFault { address: u16 },
 }
 
-pub type Result<T> = core::result::Result<T, Error>;
+type Result<T> = core::result::Result<T, Error>;
 
 pub trait Read {
     fn read(&self, address: u16) -> Result<u8>;
