@@ -25,15 +25,34 @@ impl Cartridge {
         let mbc: Box<dyn MemoryBankController> = match header.cartridge_type.mbc {
             MBCType::None => Box::new(NoMBC),
             MBCType::MBC1 => Box::new(MBC1::new(rom.len())),
-            MBCType::MBC2 => todo!(),
-            MBCType::MMM01 => todo!(),
-            MBCType::MBC3 => todo!(),
-            MBCType::MBC5 => todo!(),
-            MBCType::MBC6 => todo!(),
-            MBCType::MBC7 => todo!(),
-            MBCType::HuC3 => todo!(),
-            MBCType::HuC1 => todo!(),
+            MBCType::MBC2 => todo!("Cartridge currently not supported: MCBType = MBC2"),
+            MBCType::MMM01 => todo!("Cartridge currently not supported: MCBType = MMM01"),
+            MBCType::MBC3 => todo!("Cartridge currently not supported: MCBType = MBC3"),
+            MBCType::MBC5 => todo!("Cartridge currently not supported: MCBType = MBC5"),
+            MBCType::MBC6 => todo!("Cartridge currently not supported: MCBType = MBC6"),
+            MBCType::MBC7 => todo!("Cartridge currently not supported: MCBType = MBC7"),
+            MBCType::HuC3 => todo!("Cartridge currently not supported: MCBType = HuC3"),
+            MBCType::HuC1 => todo!("Cartridge currently not supported: MCBType = HuC1"),
         };
+
+        if header.cartridge_type.battery {
+            todo!("Cartridge currently not supported: battery")
+        }
+        if header.cartridge_type.timer {
+            todo!("Cartridge currently not supported: timer")
+        }
+        if header.cartridge_type.rumble {
+            todo!("Cartridge currently not supported: rumble")
+        }
+        if header.cartridge_type.sensor {
+            todo!("Cartridge currently not supported: sensor")
+        }
+        if header.cartridge_type.pocket_camera {
+            todo!("Cartridge currently not supported: pocket_camera")
+        }
+        if header.cartridge_type.bandai_tama5 {
+            todo!("Cartridge currently not supported: bandai_tama5")
+        }
 
         Ok(Self {
             header,
