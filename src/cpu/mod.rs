@@ -1,1 +1,2 @@
+mod instr;
 mod registers;
