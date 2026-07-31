@@ -13,6 +13,9 @@ pub use header::{ParseConfig, ParseError};
 
 #[derive(Debug, PartialEq)]
 pub enum LoadError {
+    SensorCartridge,
+    CameraCartridge,
+    BandaiTama5Cartridge,
     MismatchingRomSizes { expected: usize, actual: usize },
     MismatchingRamSizes { expected: usize, actual: usize },
 }
@@ -50,6 +53,16 @@ impl Cartridge {
     ) -> Result<Self, Error> {
         let header = Header::parse(&rom, config)?;
 
+        if header.cartridge_type.sensor {
+            Err(LoadError::SensorCartridge)?;
+        }
+        if header.cartridge_type.pocket_camera {
+            Err(LoadError::CameraCartridge)?;
+        }
+        if header.cartridge_type.bandai_tama5 {
+            Err(LoadError::BandaiTama5Cartridge)?;
+        }
+
         // Only battery packed ram can be loaded
         let ram = ram
             .and_then(|r| {
@@ -79,30 +92,18 @@ impl Cartridge {
         let mbc: Box<dyn MemoryBankController> = match header.cartridge_type.mbc {
             MBCType::None => Box::new(NoMBC),
             MBCType::MBC1 => Box::new(MBC1::new(rom.len())),
-            MBCType::MBC2 => todo!("Cartridge currently not supported: MCBType = MBC2"),
-            MBCType::MMM01 => todo!("Cartridge currently not supported: MCBType = MMM01"),
-            MBCType::MBC3 => todo!("Cartridge currently not supported: MCBType = MBC3"),
-            MBCType::MBC5 => todo!("Cartridge currently not supported: MCBType = MBC5"),
-            MBCType::MBC6 => todo!("Cartridge currently not supported: MCBType = MBC6"),
-            MBCType::MBC7 => todo!("Cartridge currently not supported: MCBType = MBC7"),
-            MBCType::HuC3 => todo!("Cartridge currently not supported: MCBType = HuC3"),
-            MBCType::HuC1 => todo!("Cartridge currently not supported: MCBType = HuC1"),
+            MBCType::MBC2 => todo!("Implement cartridge mbc \"MBC2\""),
+            MBCType::MMM01 => todo!("Implement cartridge mbc \"MMM01\""),
+            MBCType::MBC3 => todo!("Implement cartridge mbc \"MBC3\""),
+            MBCType::MBC5 => todo!("Implement cartridge mbc \"MBC5\""),
+            MBCType::MBC6 => todo!("Implement cartridge mbc \"MBC6\""),
+            MBCType::MBC7 => todo!("Implement cartridge mbc \"MBC7\""),
+            MBCType::HuC3 => todo!("Implement cartridge mbc \"HuC3\""),
+            MBCType::HuC1 => todo!("Implement cartridge mbc \"HuC1\""),
         };
 
         if header.cartridge_type.timer {
-            todo!("Cartridge currently not supported: timer")
-        }
-        if header.cartridge_type.rumble {
-            todo!("Cartridge currently not supported: rumble")
-        }
-        if header.cartridge_type.sensor {
-            todo!("Cartridge currently not supported: sensor")
-        }
-        if header.cartridge_type.pocket_camera {
-            todo!("Cartridge currently not supported: pocket_camera")
-        }
-        if header.cartridge_type.bandai_tama5 {
-            todo!("Cartridge currently not supported: bandai_tama5")
+            todo!("Implement cartridge timer")
         }
 
         Ok(Self {
