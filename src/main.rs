@@ -8,7 +8,7 @@ fn main() {
     let rom = [0; 10];
     let rom_parse_config = ParseConfig::default();
 
-    let cart = Cartridge::from(rom.into(), &rom_parse_config).unwrap();
+    let cart = Cartridge::from(rom.into(), None, &rom_parse_config).unwrap();
 
     let mut bus = Bus::new(cart);
 

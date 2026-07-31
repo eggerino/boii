@@ -31,7 +31,6 @@ pub enum ParseError {
     UnknownRomSize(u8),
     UnknownRamSize(u8),
     InvalidDestionationCode(u8),
-    MismatchingRomSizes { expected: usize, actual: usize },
     ViolatedHeaderChecksum { expected: u8, actual: u8 },
     ViolatedGlobalChecksum { expected: u16, actual: u16 },
 }
@@ -100,7 +99,6 @@ pub struct Header {
 #[derive(Default)]
 pub struct ParseConfig {
     pub check_nintento_logo: bool,
-    pub check_matching_rom_sizes: bool,
     pub check_header_checksum: bool,
     pub check_global_checksum: bool,
 }
@@ -125,10 +123,6 @@ impl Header {
 
         if config.check_nintento_logo {
             check_nintendo_logo(rom)?;
-        }
-
-        if config.check_matching_rom_sizes {
-            check_rom_size(rom, rom_size)?;
         }
 
         if config.check_header_checksum {
@@ -429,17 +423,6 @@ fn parse_rom_size(rom: &[u8]) -> Result<usize> {
     Ok(size)
 }
 
-fn check_rom_size(rom: &[u8], rom_size: usize) -> Result<()> {
-    if rom_size == rom.len() {
-        Ok(())
-    } else {
-        Err(ParseError::MismatchingRomSizes {
-            expected: rom_size,
-            actual: rom.len(),
-        })
-    }
-}
-
 fn parse_ram_size(rom: &[u8]) -> Result<usize> {
     let size = match rom[RAM_SIZE_ADDR] {
         0x00 => 0,
@@ -668,7 +651,6 @@ mod tests {
             rom,
             &ParseConfig {
                 check_nintento_logo: true,
-                check_matching_rom_sizes: true,
                 check_header_checksum: true,
                 check_global_checksum: false,
             },
