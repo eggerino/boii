@@ -1,91 +1,87 @@
 use super::MemoryBankController;
 use crate::memory::Error;
 
+const ROM_BANK_SIZE: usize = 16 * 1024;
+const ROM_BANK_REG_MASK: u8 = 0b0001_1111;
+const RAM_BANK_REG_MASK: u8 = 0b0000_0011;
+const MODE_REG_MASK: u8 = 0b0000_0001;
+const ROM_ADDR_MASK: u16 = 0b0011_1111_1111_1111;
+const RAM_ADDR_MASK: u16 = 0b0001_1111_1111_1111;
+
 pub struct MBC1 {
-    rom_bank_count: usize,
+    rom_bank_count: u8,
     reg: Registers,
+    offsets: Offsets,
+}
+
+struct Offsets {
+    lower_rom: usize,
+    upper_rom: usize,
+    ram: usize,
 }
 
 struct Registers {
-    rom_bank: usize,
-    ram_bank: usize,
-    mode: Mode,
+    rom_bank: u8,
+    ram_bank: u8,
+    mode: u8,
 }
 
-#[derive(Debug, PartialEq)]
-enum Mode {
-    Simple,
-    Advanced,
-}
+fn offsets_with(reg: &Registers, rom_bank_count: u8) -> Offsets {
+    let rom_bank = ((match reg.rom_bank & ROM_BANK_REG_MASK {
+        0 => 1,
+        x => x,
+    } % rom_bank_count)
+        & ROM_BANK_REG_MASK) as usize;
 
-fn extract_rom_bank_reg(value: u8) -> usize {
-    let mask = 0b0001_1111;
-    (value & mask) as usize
-}
+    let ram_bank = (reg.ram_bank & RAM_BANK_REG_MASK) as usize;
+    let mode = (reg.mode & MODE_REG_MASK) == 1;
 
-fn extract_ram_bank_reg(value: u8) -> usize {
-    let mask = 0b0000_0011;
-    (value & mask) as usize
-}
+    let lower_rom = if mode { ram_bank << 19 } else { 0 };
+    let upper_rom = (rom_bank << 14) | (ram_bank << 19);
+    let ram = if mode { ram_bank << 13 } else { 0 };
 
-fn extract_mode_reg(value: u8) -> Mode {
-    let mask = 0b0000_0001;
-    if value & mask == 0 {
-        Mode::Simple
-    } else {
-        Mode::Advanced
+    Offsets {
+        lower_rom,
+        upper_rom,
+        ram,
     }
 }
 
-fn backing_rom_addr(mbc: &MBC1, address: u16) -> Option<usize> {
-    let mask = 0b0011_1111_1111_1111;
-    let base_addr = (address & mask) as usize;
-
-    let mask = 0b0001_1111;
-    let rom_bank = ((if mbc.reg.rom_bank == 0 {
-        1
-    } else {
-        mbc.reg.rom_bank
-    } % mbc.rom_bank_count)
-        & mask) as usize;
-
-    let ram_bank = mbc.reg.ram_bank;
-
-    match (address, &mbc.reg.mode) {
-        (0x0000..0x4000, Mode::Simple) => Some(base_addr),
-        (0x0000..0x4000, Mode::Advanced) => Some(base_addr + (ram_bank << 19)), // 2-bit register for ram bank gets reinterpreted in advanced mode
-        (0x4000..0x8000, _) => Some(base_addr + (rom_bank << 14) + (ram_bank << 19)),
-        _ => None,
+fn backing_rom_addr(address: u16, offsets: &Offsets) -> usize {
+    let base_addr = (address & ROM_ADDR_MASK) as usize;
+    match address {
+        ..0x4000 => offsets.lower_rom | base_addr,
+        0x4000.. => offsets.upper_rom | base_addr,
     }
 }
 
-fn backing_ram_addr(mbc: &MBC1, address: u16) -> usize {
-    match mbc.reg.mode {
-        Mode::Simple => address as usize,
-        Mode::Advanced => address as usize + (mbc.reg.ram_bank << 13),
-    }
+fn backing_ram_addr(address: u16, offsets: &Offsets) -> usize {
+    let base_addr = (address & RAM_ADDR_MASK) as usize;
+    offsets.ram | base_addr
 }
 
 impl MBC1 {
     pub fn new(rom_size: usize) -> Self {
-        let rom_bank_count = rom_size / (16 * 1024); // Each rom bank is 16 KiB large
+        let rom_bank_count = (rom_size / ROM_BANK_SIZE) as u8;
+        let reg = Registers {
+            rom_bank: 0,
+            ram_bank: 0,
+            mode: 0,
+        };
+        let offsets = offsets_with(&reg, rom_bank_count);
 
         Self {
             rom_bank_count,
-            reg: Registers {
-                rom_bank: 0,
-                ram_bank: 0,
-                mode: Mode::Simple,
-            },
+            reg,
+            offsets,
         }
     }
 }
 
 impl MemoryBankController for MBC1 {
     fn read_rom(&self, backing_rom: &[u8], address: u16) -> Result<u8, Error> {
-        backing_rom_addr(self, address)
-            .map(|x| backing_rom.get(x))
-            .flatten()
+        backing_rom
+            .get(backing_rom_addr(address, &self.offsets))
             .map(|x| *x)
             .ok_or(Error::SegFault { address })
     }
@@ -93,24 +89,25 @@ impl MemoryBankController for MBC1 {
     fn write_rom(&mut self, _backing_rom: &mut [u8], address: u16, value: u8) -> Result<(), Error> {
         match address {
             0x0000..0x2000 => (), // Toggle RAM -> no effect to emulate
-            0x2000..0x4000 => self.reg.rom_bank = extract_rom_bank_reg(value),
-            0x4000..0x6000 => self.reg.ram_bank = extract_ram_bank_reg(value),
-            0x6000..0x8000 => self.reg.mode = extract_mode_reg(value),
+            0x2000..0x4000 => self.reg.rom_bank = value,
+            0x4000..0x6000 => self.reg.ram_bank = value,
+            0x6000..0x8000 => self.reg.mode = value,
             _ => Err(Error::SegFault { address })?,
-        }
+        };
+        self.offsets = offsets_with(&self.reg, self.rom_bank_count);
         Ok(())
     }
 
     fn read_ram(&self, backing_ram: &[u8], address: u16) -> Result<u8, Error> {
         backing_ram
-            .get(backing_ram_addr(self, address))
+            .get(backing_ram_addr(address, &self.offsets))
             .map(|x| *x)
             .ok_or(Error::SegFault { address })
     }
 
     fn write_ram(&mut self, backing_ram: &mut [u8], address: u16, value: u8) -> Result<(), Error> {
         backing_ram
-            .get_mut(backing_ram_addr(self, address))
+            .get_mut(backing_ram_addr(address, &self.offsets))
             .map(|x| *x = value)
             .ok_or(Error::SegFault { address })
     }
@@ -119,20 +116,6 @@ impl MemoryBankController for MBC1 {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn write_rom_sets_registers() {
-        let mut mbc1 = MBC1::new(16 * 1024);
-        let mut rom = [0; 10];
-
-        mbc1.write_rom(&mut rom, 0x2000, 255).unwrap();
-        mbc1.write_rom(&mut rom, 0x4000, 255).unwrap();
-        mbc1.write_rom(&mut rom, 0x6000, 255).unwrap();
-
-        assert_eq!(mbc1.reg.rom_bank, 0b0001_1111);
-        assert_eq!(mbc1.reg.ram_bank, 0b0000_0011);
-        assert_eq!(mbc1.reg.mode, Mode::Advanced);
-    }
 
     #[test]
     fn read_rom_different_banks() {
@@ -158,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn read_rom_bank0_mirror_bug() {
+    fn read_rom_bank_zero_mirror_bug() {
         let mut rom = vec![0; 64 * 1024];
         let mut mbc1 = MBC1::new(rom.len());
 
