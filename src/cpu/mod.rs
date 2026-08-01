@@ -3,7 +3,7 @@
 //     memory::{Read, Write},
 // };
 
-// mod imd;
+pub mod imd;
 pub mod instr;
 pub mod registers;
 

@@ -6,16 +6,20 @@ pub struct InterruptMasterDispatcher {
 
 impl InterruptMasterDispatcher {
     pub fn new(value: bool) -> Self {
-        Self { value, target: value, counter: -1 }
+        Self {
+            value,
+            target: value,
+            counter: -1,
+        }
     }
 
     pub fn value(&self) -> bool {
         self.value
     }
 
-    pub fn enque(&mut self, value: bool, numberInvocations: i32) {
+    pub fn enque(&mut self, value: bool, number_invocations: i32) {
         self.target = value;
-        self.counter = numberInvocations;
+        self.counter = number_invocations;
     }
 
     pub fn force(&mut self, value: bool) {
@@ -33,6 +37,6 @@ impl InterruptMasterDispatcher {
             self.value = self.target;
         }
 
-        self.counter -= 1;
+        self.counter = self.counter.saturating_sub(1);
     }
 }
