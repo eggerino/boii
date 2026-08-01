@@ -5,7 +5,11 @@ pub struct InterruptMasterDispatcher {
 }
 
 impl InterruptMasterDispatcher {
-    pub fn new(value: bool) -> Self {
+    pub fn new() -> Self {
+        Self::new_with(false)
+    }
+
+    pub fn new_with(value: bool) -> Self {
         Self {
             value,
             target: value,

@@ -6,16 +6,6 @@ namespace Boii.Processing.Test;
 public class CpuInstructionTest
 {
     // Misc
-    [Fact]
-    public void Nop()
-    {
-        var bus = Bus.From([0x00]); // nop
-        var cpu = Cpu.Create(bus);
-
-        Step(cpu, 1);
-
-        AssertCpu(1, new(0, 0, 0, 0, 0, 0x0101), cpu);
-    }
 
     [Theory]
     // Subtraction cases

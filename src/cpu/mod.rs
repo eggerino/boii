@@ -1,215 +1,536 @@
-// use crate::{
-//     cpu::{imd::InterruptMasterDispatcher, registers::Registers},
-//     memory::{Read, Write},
-// };
+use crate::{
+    cpu::{
+        imd::InterruptMasterDispatcher,
+        instr::{Condition, Instruction, Register8, Register16, Register16Memory, Register16Stack},
+        registers::Registers,
+    },
+    memory::{self, Read, Write},
+};
 
-pub mod imd;
+mod imd;
 pub mod instr;
-pub mod registers;
+mod registers;
 
-// pub struct Cpu<T>
-// where
-//     T: Read + Write,
-// {
-//     bus: T,
-//     registers: Registers,
-//     ticks: usize,
-//     halted: bool,
-//     interrupt_master: InterruptMasterDispatcher,
-// }
+const INTERRUPT_FLAG_ADDR: u16 = 0xFF0F;
+const INTERRUPT_ENABLE_ADDR: u16 = 0xFFFF;
 
-// impl<T> Cpu<T>
-// where
-//     T: Read + Write,
-// {
-//     pub fn new(bus: T) -> Self {
-//         Self {
-//             bus,
-//             registers: Registers::new(),
-//             ticks: 0,
-//             halted: false,
-//             interrupt_master: InterruptMasterDispatcher::new(false),
-//         }
-//     }
+pub enum Error {
+    InvalidInstruction,
+    Memory(memory::Error),
+}
 
-//     pub fn step(&mut self) -> usize {
-//         0
-//     }
-// }
+impl From<memory::Error> for Error {
+    fn from(value: memory::Error) -> Self {
+        Self::Memory(value)
+    }
+}
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+type Result<T> = core::result::Result<T, Error>;
 
-//     type Cpu = super::Cpu<Vec<u8>>;
+#[inline]
+pub fn bit(value: u8, idx: u8) -> bool {
+    value & (1 << idx) > 0
+}
 
-//     fn ensure_size(bus: &mut Vec<u8>, size: usize) {
-//         if size > bus.len() {
-//             bus.resize(size, 0);
-//         }
-//     }
+#[inline]
+pub fn clear_bit(value: u8, idx: u8) -> u8 {
+    value & !(1 << idx)
+}
 
-//     fn step(cpu: &mut Cpu, amount: usize) -> usize {
-//         (0..amount).fold(0, |acc, _| acc + cpu.step())
-//     }
+#[inline]
+pub fn high_byte(value: u16) -> u8 {
+    (value >> 8) as u8
+}
 
-//     struct CpuState {
-//         af: u16,
-//         bc: u16,
-//         de: u16,
-//         hl: u16,
-//         stack_ptr: u16,
-//         prog_counter: u16,
-//         interrupt_master: bool,
-//         halted: bool,
-//     }
+#[inline]
+pub fn low_byte(value: u16) -> u8 {
+    value as u8
+}
 
-//     fn cpu_state(
-//         af: u16,
-//         bc: u16,
-//         de: u16,
-//         hl: u16,
-//         stack_ptr: u16,
-//         prog_counter: u16,
-//         interrupt_master: bool,
-//         halted: bool,
-//     ) -> CpuState {
-//         CpuState {
-//             af,
-//             bc,
-//             de,
-//             hl,
-//             stack_ptr,
-//             prog_counter,
-//             interrupt_master,
-//             halted,
-//         }
-//     }
+#[inline]
+pub fn to_u16(high: u8, low: u8) -> u16 {
+    ((high as u16) << 8) | (low as u16)
+}
 
-//     fn cpu_with_state(bus: Vec<u8>, state: CpuState) -> Cpu {
-//         Cpu {
-//             bus,
-//             registers: Registers {
-//                 af: state.af,
-//                 bc: state.bc,
-//                 de: state.de,
-//                 hl: state.hl,
-//                 stack_ptr: state.stack_ptr,
-//                 prog_counter: state.prog_counter,
-//             },
-//             ticks: 0,
-//             halted: state.halted,
-//             interrupt_master: InterruptMasterDispatcher::new(state.interrupt_master),
-//         }
-//     }
+pub struct Cpu<T>
+where
+    T: Read + Write,
+{
+    bus: T,
+    reg: Registers,
+    ticks: usize,
+    halted: bool,
+    imd: InterruptMasterDispatcher,
+    buffered_opcode: Option<u8>,
+}
 
-//     fn assert_cpu(expected_ticks: usize, expected_state: &CpuState, actual: &Cpu) {
-//         assert_eq!(expected_ticks, actual.ticks);
-//         assert_eq!(expected_state.af, actual.registers.af);
-//         assert_eq!(expected_state.bc, actual.registers.bc);
-//         assert_eq!(expected_state.de, actual.registers.de);
-//         assert_eq!(expected_state.hl, actual.registers.hl);
-//         assert_eq!(expected_state.stack_ptr, actual.registers.stack_ptr);
-//         assert_eq!(expected_state.prog_counter, actual.registers.prog_counter);
-//         assert_eq!(
-//             expected_state.interrupt_master,
-//             actual.interrupt_master.value()
-//         );
-//         assert_eq!(expected_state.halted, actual.halted);
-//     }
+impl<T> Cpu<T>
+where
+    T: Read + Write,
+{
+    pub fn new(bus: T) -> Self {
+        Self {
+            bus,
+            reg: Registers::default(),
+            ticks: 0,
+            halted: false,
+            imd: InterruptMasterDispatcher::new(),
+            buffered_opcode: None,
+        }
+    }
 
-//     #[test]
-//     fn cpu_halts until_interrupt() {
-//         let mut bus = vec![0b0111_0110];  // halt
-//         ensure_size(&mut bus, 0x1_0000);
+    pub fn ticks(&self) -> usize {
+        self.ticks
+    }
 
-//         let mut cpu = cpu_with_state(bus,  cpu_state(0, 0, 0, 0, 2, 0x0100,  true, false));
+    pub fn step(&mut self) -> Result<usize> {
+        self.advance().map(|x| {
+            self.ticks = self.ticks.wrapping_add(x);
+            x
+        })
+    }
 
-//         step(&mut cpu, 2);
-//         assert_cpu(2, &cpu_state(0, 0, 0, 0, 2, 0x0101, true, true), &cpu);
+    fn advance(&mut self) -> Result<usize> {
+        // REFACTOR
+        if let Some(ticks) = self.handle_interrupt()? {
+            return Ok(ticks);
+        }
 
-//         bus.Write(0xFF0F, 0b0001_1111);
-//         bus.Write(0xFFFF, 0b0001_1111);
+        if let Some(ticks) = self.handle_halt()? {
+            return Ok(ticks);
+        }
 
-//         cpu.Step();
-//         AssertCpu(7, new(0, 0, 0, 0, 0, 0x0040, InterruptMaster: false, Halted: false), cpu);
-//         Assert.Equal(0x01, bus.Read(0));
-//         Assert.Equal(0x01, bus.Read(1));
-//     }
+        let opcode = self.get_opcode()?;
+        let inst = Instruction::from(opcode);
 
-//     // #[test]
-//     // fn CpuWakesOnInterrupt()
-//     // {
-//     //     var bus = Bus.From([0b0111_0110]);  // halt
-//     //     bus.EnsureSize(0x1_0000);
-//     //     var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 0, 0x0100));
+        let ticks = self.execute(inst);
+        self.imd.update();
 
-//     //     Step(cpu, 2);
-//     //     AssertCpu(2, new(0, 0, 0, 0, 0, 0x0101, Halted: true), cpu);
+        ticks
+    }
 
-//     //     bus.Write(0xFF0F, 0b0001_1111);
-//     //     bus.Write(0xFFFF, 0b0001_1111);
+    // Halt & Interrupts
+    fn handle_interrupt(&mut self) -> Result<Option<usize>> {
+        if !self.imd.value() {
+            return Ok(None);
+        }
 
-//     //     cpu.Step();
-//     //     AssertCpu(3, new(0, 0, 0, 0, 0, 0x0102), cpu);
-//     // }
+        let pending = self.pending_interrupts()?;
+        if pending == 0 {
+            return Ok(None);
+        }
 
-//     // #[test]
-//     // fn HaltBug_RereadNextByte()
-//     // {
-//     //     var bus = Bus.From([
-//     //         0b0111_0110,    // halt
-//     //         0x06, 0x04,     // ld b, 4
-//     //     ]);
-//     //     bus.EnsureSize(0x1_0000);
-//     //     bus.Write(0xFF0F, 0b0001_1111);
-//     //     bus.Write(0xFFFF, 0b0001_1111);
+        self.execute_interrupt(pending).map(|_| Some(5))
+    }
 
-//     //     var cpu = Cpu.Create(bus);
+    fn handle_halt(&mut self) -> Result<Option<usize>> {
+        if !self.halted {
+            return Ok(None);
+        }
 
-//     //     Step(cpu, 3);
+        if self.imd.value() {
+            return Ok(Some(1)); // wait for an interrupt
+        }
 
-//     //     // Cpu sees:
-//     //     //      halt
-//     //     //      ld b, 6
-//     //     //      inc b
-//     //     AssertCpu(4, new(0, 0x0700, 0, 0, 0, 0x0103, Halted: false), cpu);
-//     // }
+        if self.pending_interrupts()? != 0 {
+            self.halted = true; // Wake up on pending interrupts
+            return Ok(None);
+        }
 
-//     // #[test]
-//     // fn HaltBug_HaltCanLoop()
-//     // {
-//     //     var bus = Bus.From([
-//     //         0b0111_0110,    // halt
-//     //         0b0111_0110,    // halt
-//     //     ]);
-//     //     bus.EnsureSize(0x1_0000);
-//     //     bus.Write(0xFF0F, 0b0001_1111);
-//     //     bus.Write(0xFFFF, 0b0001_1111);
+        Ok(Some(1)) // Keep in halting state
+    }
 
-//     //     var cpu = Cpu.Create(bus);
+    fn pending_interrupts(&self) -> Result<u8> {
+        self.bus
+            .read(INTERRUPT_ENABLE_ADDR)
+            .and_then(|e| self.bus.read(INTERRUPT_FLAG_ADDR).map(|f| e & f))
+            .map_err(|x| x.into())
+    }
 
-//     //     Step(cpu, 10);
+    fn execute_interrupt(&mut self, pending: u8) -> Result<()> {
+        // Get the interrupt with the highest priority
+        let idx = (0..5)
+            .map(|i| (i, bit(pending, i)))
+            .filter(|&(_, x)| x)
+            .map(|(x, _)| x)
+            .next();
 
-//     //     AssertCpu(10, new(0, 0, 0, 0, 0, 0x0101, Halted: false), cpu);
-//     // }
+        if let Some(idx) = idx {
+            // Disable its requested flag
+            self.ack_interrupt(idx)?;
 
-//     // #[test]
-//     // fn HaltBug_EnableInterrupt_Halt_WillReturnToHalt()
-//     // {
-//     //     var bus = Bus.From([
-//     //         0b1111_1011,        // ei
-//     //         0b0111_0110,        // halt
-//     //     ]);
-//     //     bus.EnsureSize(0x1_0000);
-//     //     bus.Write(0xFF0F, 0b0000_0001);
-//     //     bus.Write(0xFFFF, 0b0000_0001);
-//     //     bus.Write(0x0040, 0b1100_1001);     // Return the interrupt handler immediately
-//     //     var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0, 0, 0, 2, 0x0100));
+            // Disable master flag immediately (Prevent others)
+            self.imd.force(false);
 
-//     //     Step(cpu, 4);
-//     //     AssertCpu(11, new(0, 0, 0, 0, 2, 0x0101), cpu);
-//     //     Assert.Equal(0x01, bus.Read(0));
-//     //     Assert.Equal(0x01, bus.Read(1));
-//     // }
-// }
+            // Call the address of the interrupt
+            let addr = 0x0040 + (idx as u16) * 0x0008;
+            self.do_call(addr)?;
+
+            // Interrupts resume execution
+            self.halted = false;
+        }
+
+        Ok(())
+    }
+
+    fn ack_interrupt(&mut self, idx: u8) -> Result<()> {
+        self.bus
+            .read(INTERRUPT_FLAG_ADDR)
+            .map(|f| clear_bit(f, idx))
+            .and_then(|f| self.bus.write(INTERRUPT_FLAG_ADDR, f))
+            .map_err(|x| x.into())
+    }
+
+    // Execution utility
+    fn get_opcode(&mut self) -> Result<u8> {
+        self.buffered_opcode
+            .take()
+            .map(Ok)
+            .unwrap_or_else(|| self.fetch_u8())
+    }
+
+    fn fetch_u8(&mut self) -> Result<u8> {
+        self.bus
+            .read(self.reg.prog_counter)
+            .map(|x| {
+                self.reg.prog_counter += 1;
+                x
+            })
+            .map_err(|x| x.into())
+    }
+
+    fn fetch_u16(&mut self) -> Result<u16> {
+        self.fetch_u8()
+            .and_then(|l| self.fetch_u8().map(|h| to_u16(h, l)))
+    }
+
+    fn get_register8(&self, register: Register8) -> Result<u8> {
+        match register {
+            Register8::B => Ok(self.reg.get_b()),
+            Register8::C => Ok(self.reg.get_c()),
+            Register8::D => Ok(self.reg.get_d()),
+            Register8::E => Ok(self.reg.get_e()),
+            Register8::H => Ok(self.reg.get_h()),
+            Register8::L => Ok(self.reg.get_l()),
+            Register8::HLAsPointer => self.bus.read(self.reg.hl).map_err(|e| e.into()),
+            Register8::A => Ok(self.reg.get_a()),
+        }
+    }
+
+    fn set_register8(&mut self, register: Register8, value: u8) -> Result<()> {
+        match register {
+            Register8::B => Ok(self.reg.set_b(value)),
+            Register8::C => Ok(self.reg.set_c(value)),
+            Register8::D => Ok(self.reg.set_d(value)),
+            Register8::E => Ok(self.reg.set_e(value)),
+            Register8::H => Ok(self.reg.set_h(value)),
+            Register8::L => Ok(self.reg.set_l(value)),
+            Register8::HLAsPointer => self.bus.write(self.reg.hl, value).map_err(|e| e.into()),
+            Register8::A => Ok(self.reg.set_a(value)),
+        }
+    }
+
+    fn get_register16(&self, register: Register16) -> u16 {
+        match register {
+            Register16::BC => self.reg.bc,
+            Register16::DE => self.reg.de,
+            Register16::HL => self.reg.hl,
+            Register16::StackPointer => self.reg.stack_ptr,
+        }
+    }
+
+    fn set_register16(&mut self, register: Register16, value: u16) {
+        match register {
+            Register16::BC => self.reg.bc = value,
+            Register16::DE => self.reg.de = value,
+            Register16::HL => self.reg.hl = value,
+            Register16::StackPointer => self.reg.stack_ptr = value,
+        }
+    }
+
+    fn get_register16stack(&self, register: Register16Stack) -> u16 {
+        match register {
+            Register16Stack::BC => self.reg.bc,
+            Register16Stack::DE => self.reg.de,
+            Register16Stack::HL => self.reg.hl,
+            Register16Stack::AF => self.reg.af,
+        }
+    }
+
+    fn set_register16stack(&mut self, register: Register16Stack, value: u16) {
+        match register {
+            Register16Stack::BC => self.reg.bc = value,
+            Register16Stack::DE => self.reg.de = value,
+            Register16Stack::HL => self.reg.hl = value,
+            Register16Stack::AF => self.reg.af = value,
+        }
+    }
+
+    fn read_from_register16memory(&mut self, register: Register16Memory) -> Result<u8> {
+        match register {
+            Register16Memory::BC => self.bus.read(self.reg.bc),
+            Register16Memory::DE => self.bus.read(self.reg.de),
+            Register16Memory::HLInc => self.bus.read(self.reg.hl).map(|x| {
+                self.reg.hl += 1;
+                x
+            }),
+            Register16Memory::HLDec => self.bus.read(self.reg.hl).map(|x| {
+                self.reg.hl -= 1;
+                x
+            }),
+        }
+        .map_err(|e| e.into())
+    }
+
+    fn write_to_register16memory(&mut self, register: Register16Memory, value: u8) -> Result<()> {
+        match register {
+            Register16Memory::BC => self.bus.write(self.reg.bc, value),
+            Register16Memory::DE => self.bus.write(self.reg.de, value),
+            Register16Memory::HLInc => self.bus.write(self.reg.hl, value).map(|x| {
+                self.reg.hl += 1;
+                x
+            }),
+            Register16Memory::HLDec => self.bus.write(self.reg.hl, value).map(|x| {
+                self.reg.hl -= 1;
+                x
+            }),
+        }
+        .map_err(|e| e.into())
+    }
+
+    fn get_condition(&self, condition: Condition) -> bool {
+        match condition {
+            Condition::NotZero => !self.reg.get_zero_flag(),
+            Condition::Zero => self.reg.get_zero_flag(),
+            Condition::NotCarry => !self.reg.get_carry_flag(),
+            Condition::Carry => self.reg.get_carry_flag(),
+        }
+    }
+
+    fn is_overflow_bit3(old_value: i32, increment: i32) -> bool {
+        ((old_value & 0x000F) + (increment & 0x000F)) > 0x000F
+    }
+
+    fn is_overflow_bit7(old_value: i32, increment: i32) -> bool {
+        ((old_value & 0x00FF) + (increment & 0x00FF)) > 0x00FF
+    }
+
+    fn is_overflow_bit11(old_value: i32, increment: i32) -> bool {
+        ((old_value & 0x0FFF) + (increment & 0x0FFF)) > 0x0FFF
+    }
+
+    fn is_overflow_bit15(old_value: i32, increment: i32) -> bool {
+        ((old_value & 0xFFFF) + (increment & 0xFFFF)) > 0xFFFF
+    }
+
+    fn is_borroww_bit4(old_value: i32, decrement: i32) -> bool {
+        ((old_value & 0x000F) - (decrement & 0x000F)) < 0
+    }
+
+    // Instruction execution
+    fn execute(&mut self, inst: Instruction) -> Result<usize> {
+        match inst {
+            Instruction::Nop => Self::nop(),
+            Instruction::Stop => todo!(),
+            Instruction::DecimalAdjustA => todo!(),
+            Instruction::Halt => todo!(),
+            Instruction::EnableInterrupt => todo!(),
+            Instruction::DisableInterrupt => todo!(),
+            Instruction::LoadLiteral8(register8) => todo!(),
+            Instruction::LoadRegister8 { src, dest } => todo!(),
+            Instruction::LoadLiteral16(register16) => todo!(),
+            Instruction::LoadFromA(register16_memory) => todo!(),
+            Instruction::LoadFromAIntoLiteral16Pointer => todo!(),
+            Instruction::LoadFromAIntoLiteral8HighPointer => todo!(),
+            Instruction::LoadFromAIntoCHighPointer => todo!(),
+            Instruction::LoadIntoA(register16_memory) => todo!(),
+            Instruction::LoadFromLiteral16PointerIntoA => todo!(),
+            Instruction::LoadFromLiteral8HighPointerIntoA => todo!(),
+            Instruction::LoadFromCHighPointerIntoA => todo!(),
+            Instruction::IncrementRegister8(register8) => todo!(),
+            Instruction::DecrementRegister8(register8) => todo!(),
+            Instruction::AddToA(register8) => todo!(),
+            Instruction::AddLiteral8ToA => todo!(),
+            Instruction::AddToACarry(register8) => todo!(),
+            Instruction::AddLiteral8ToACarry => todo!(),
+            Instruction::SubtractFromA(register8) => todo!(),
+            Instruction::SubtractLiteral8FromA => todo!(),
+            Instruction::SubtractFromACarry(register8) => todo!(),
+            Instruction::SubtractLiteral8FromACarry => todo!(),
+            Instruction::CompareToA(register8) => todo!(),
+            Instruction::CompareLiteral8ToA => todo!(),
+            Instruction::IncrementRegister16(register16) => todo!(),
+            Instruction::DecrementRegister16(register16) => todo!(),
+            Instruction::AddRegister16ToHL(register16) => todo!(),
+            Instruction::ComplementA => todo!(),
+            Instruction::AndWithA(register8) => todo!(),
+            Instruction::AndLiteral8WithA => todo!(),
+            Instruction::XorWithA(register8) => todo!(),
+            Instruction::XorLiteral8WithA => todo!(),
+            Instruction::OrWithA(register8) => todo!(),
+            Instruction::OrLiteral8WithA => todo!(),
+            Instruction::RotateLeftA => todo!(),
+            Instruction::RotateLeftCarryA => todo!(),
+            Instruction::RotateRightA => todo!(),
+            Instruction::RotateRightCarryA => todo!(),
+            Instruction::JumpRelative => todo!(),
+            Instruction::ConditionalJumpRelative(condition) => todo!(),
+            Instruction::Jump => todo!(),
+            Instruction::ConditionalJump(condition) => todo!(),
+            Instruction::JumpHL => todo!(),
+            Instruction::Call => todo!(),
+            Instruction::ConditionalCall(condition) => todo!(),
+            Instruction::Restart(u3) => todo!(),
+            Instruction::Return => todo!(),
+            Instruction::ConditionalReturn(condition) => todo!(),
+            Instruction::ReturnInterrupt => todo!(),
+            Instruction::SetCarryFlag => todo!(),
+            Instruction::ComplementCarryFlag => todo!(),
+            Instruction::Push(register16_stack) => todo!(),
+            Instruction::Pop(register16_stack) => todo!(),
+            Instruction::AddSignedLiteral8ToStackPointer => todo!(),
+            Instruction::LoadFromStackPointerIntoLiteral16Pointer => todo!(),
+            Instruction::LoadFromStackPointerPlusSignedLiteral8IntoHL => todo!(),
+            Instruction::LoadFromHLIntoStackPointer => todo!(),
+            Instruction::Prefixed => todo!(),
+            Instruction::Invalid => Err(Error::InvalidInstruction),
+        }
+    }
+
+    // Misc
+    fn nop() -> Result<usize> {
+        Ok(1)
+    }
+
+    fn do_call(&mut self, address: u16) -> Result<()> {
+        let ret_addr = self.reg.prog_counter;
+        let high = high_byte(ret_addr);
+        let low = low_byte(ret_addr);
+        self.bus.write(self.reg.stack_ptr, high)?;
+        self.bus.write(self.reg.stack_ptr - 1, low)?;
+        self.reg.stack_ptr -= 2;
+        self.reg.prog_counter = address;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::memory::Error;
+    use std::ops::{Deref, DerefMut};
+
+    impl Read for Vec<u8> {
+        fn read(&self, address: u16) -> core::result::Result<u8, Error> {
+            self.deref().read(address)
+        }
+    }
+
+    impl Write for Vec<u8> {
+        fn write(&mut self, address: u16, value: u8) -> core::result::Result<(), Error> {
+            self.deref_mut().write(address, value)
+        }
+    }
+
+    type Cpu = super::Cpu<Vec<u8>>;
+
+    #[derive(Debug, PartialEq)]
+    struct CpuState {
+        af: u16,
+        bc: u16,
+        de: u16,
+        hl: u16,
+        stack_ptr: u16,
+        prog_counter: u16,
+        halted: bool,
+        imd: bool,
+    }
+
+    fn prog(src: &[u8]) -> Vec<u8> {
+        let mut memory = vec![0; 0x0100];
+        memory.extend_from_slice(src);
+        memory
+    }
+
+    fn ensure_size(mem: &mut Vec<u8>, size: usize) {
+        if mem.len() < size {
+            mem.resize(size, 0);
+        }
+    }
+
+    fn state(
+        af: u16,
+        bc: u16,
+        de: u16,
+        hl: u16,
+        stack_ptr: u16,
+        prog_counter: u16,
+        halted: bool,
+        imd: bool,
+    ) -> CpuState {
+        CpuState {
+            af,
+            bc,
+            de,
+            hl,
+            stack_ptr,
+            prog_counter,
+            halted,
+            imd,
+        }
+    }
+
+    fn state_of(cpu: &Cpu) -> CpuState {
+        CpuState {
+            af: cpu.reg.af,
+            bc: cpu.reg.bc,
+            de: cpu.reg.de,
+            hl: cpu.reg.hl,
+            stack_ptr: cpu.reg.stack_ptr,
+            prog_counter: cpu.reg.prog_counter,
+            halted: cpu.halted,
+            imd: cpu.imd.value(),
+        }
+    }
+
+    fn cpu(bus: Vec<u8>, state: CpuState) -> Cpu {
+        Cpu {
+            bus,
+            reg: Registers {
+                af: state.af,
+                bc: state.bc,
+                de: state.de,
+                hl: state.hl,
+                stack_ptr: state.stack_ptr,
+                prog_counter: state.prog_counter,
+            },
+            ticks: 0,
+            halted: state.halted,
+            imd: InterruptMasterDispatcher::new_with(state.imd),
+            buffered_opcode: None,
+        }
+    }
+
+    fn step(cpu: &mut Cpu, amount: usize) -> usize {
+        (0..amount).fold(0, |acc, _| acc + cpu.step().unwrap_or_default())
+    }
+
+    fn assert_cpu(expected_ticks: usize, expected_state: CpuState, actual: &Cpu) {
+        assert_eq!(expected_ticks, actual.ticks);
+        assert_eq!(expected_state, state_of(actual));
+    }
+
+    mod misc {
+        use super::*;
+
+        #[test]
+        fn nop() {
+            let bus = prog(&[0x00]); // nop
+            let mut cpu = Cpu::new(bus);
+
+            step(&mut cpu, 1);
+
+            assert_cpu(1, state(0, 0, 0, 0, 0, 0x0101, false, false), &cpu);
+        }
+    }
+}
