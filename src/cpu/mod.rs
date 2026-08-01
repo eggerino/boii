@@ -4,7 +4,7 @@
 // };
 
 // mod imd;
-// mod instr;
+pub mod instr;
 // mod registers;
 
 // pub struct Cpu<T>

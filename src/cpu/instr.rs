@@ -1,24 +1,8 @@
-enum U2 {
-    Zero,
-    One,
-    Two,
-    Three,
-}
+use crate::bits::{BitPattern, Bits};
 
-impl U2 {
-    fn from(x: u8, offset: u8) -> Self {
-        let mask = 0b11;
-        match (x >> offset) & mask {
-            0 => Self::Zero,
-            1 => Self::One,
-            2 => Self::Two,
-            3 => Self::Three,
-            _ => unreachable!(),
-        }
-    }
-}
+const O: bool = false;
+const I: bool = true;
 
-#[derive(Copy, Clone)]
 pub enum U3 {
     Zero,
     One,
@@ -30,39 +14,34 @@ pub enum U3 {
     Seven,
 }
 
-impl U3 {
-    fn from(x: u8, offset: u8) -> Self {
-        let mask = 0b111;
-        match (x >> offset) & mask {
-            0 => Self::Zero,
-            1 => Self::One,
-            2 => Self::Two,
-            3 => Self::Three,
-            4 => Self::Four,
-            5 => Self::Five,
-            6 => Self::Six,
-            7 => Self::Seven,
-            _ => unreachable!(),
+fn u3(pattern: BitPattern<3>) -> U3 {
+    match pattern {
+        [O, O, O] => U3::Zero,
+        [O, O, I] => U3::One,
+        [O, I, O] => U3::Two,
+        [O, I, I] => U3::Three,
+        [I, O, O] => U3::Four,
+        [I, O, I] => U3::Five,
+        [I, I, O] => U3::Six,
+        [I, I, I] => U3::Seven,
+    }
+}
+
+impl From<U3> for u8 {
+    fn from(val: U3) -> Self {
+        match val {
+            U3::Zero => 0,
+            U3::One => 1,
+            U3::Two => 2,
+            U3::Three => 3,
+            U3::Four => 4,
+            U3::Five => 5,
+            U3::Six => 6,
+            U3::Seven => 7,
         }
     }
 }
 
-impl Into<u8> for U3 {
-    fn into(self) -> u8 {
-        match self {
-            Self::Zero => 0,
-            Self::One => 1,
-            Self::Two => 2,
-            Self::Three => 3,
-            Self::Four => 4,
-            Self::Five => 5,
-            Self::Six => 6,
-            Self::Seven => 7,
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
 pub enum Register8 {
     B,
     C,
@@ -74,22 +53,19 @@ pub enum Register8 {
     A,
 }
 
-impl Register8 {
-    fn from(x: u8, offset: u8) -> Self {
-        match U3::from(x, offset) {
-            U3::Zero => Self::B,
-            U3::One => Self::C,
-            U3::Two => Self::D,
-            U3::Three => Self::E,
-            U3::Four => Self::H,
-            U3::Five => Self::L,
-            U3::Six => Self::HLAsPointer,
-            U3::Seven => Self::A,
-        }
+fn r8(pattern: BitPattern<3>) -> Register8 {
+    match pattern {
+        [O, O, O] => Register8::B,
+        [O, O, I] => Register8::C,
+        [O, I, O] => Register8::D,
+        [O, I, I] => Register8::E,
+        [I, O, O] => Register8::H,
+        [I, O, I] => Register8::L,
+        [I, I, O] => Register8::HLAsPointer,
+        [I, I, I] => Register8::A,
     }
 }
 
-#[derive(Copy, Clone)]
 pub enum Register16 {
     BC,
     DE,
@@ -97,18 +73,15 @@ pub enum Register16 {
     StackPointer,
 }
 
-impl Register16 {
-    fn from(x: u8, offset: u8) -> Self {
-        match U2::from(x, offset) {
-            U2::Zero => Self::BC,
-            U2::One => Self::DE,
-            U2::Two => Self::HL,
-            U2::Three => Self::StackPointer,
-        }
+fn r16(pattern: BitPattern<2>) -> Register16 {
+    match pattern {
+        [O, O] => Register16::BC,
+        [O, I] => Register16::DE,
+        [I, O] => Register16::HL,
+        [I, I] => Register16::StackPointer,
     }
 }
 
-#[derive(Copy, Clone)]
 pub enum Register16Stack {
     BC,
     DE,
@@ -116,18 +89,15 @@ pub enum Register16Stack {
     AF,
 }
 
-impl Register16Stack {
-    fn from(x: u8, offset: u8) -> Self {
-        match U2::from(x, offset) {
-            U2::Zero => Self::BC,
-            U2::One => Self::DE,
-            U2::Two => Self::HL,
-            U2::Three => Self::AF,
-        }
+fn r16stk(pattern: BitPattern<2>) -> Register16Stack {
+    match pattern {
+        [O, O] => Register16Stack::BC,
+        [O, I] => Register16Stack::DE,
+        [I, O] => Register16Stack::HL,
+        [I, I] => Register16Stack::AF,
     }
 }
 
-#[derive(Copy, Clone)]
 pub enum Register16Memory {
     BC,
     DE,
@@ -135,18 +105,15 @@ pub enum Register16Memory {
     HLDec,
 }
 
-impl Register16Memory {
-    fn from(x: u8, offset: u8) -> Self {
-        match U2::from(x, offset) {
-            U2::Zero => Self::BC,
-            U2::One => Self::DE,
-            U2::Two => Self::HLInc,
-            U2::Three => Self::HLDec,
-        }
+fn r16mem(value: BitPattern<2>) -> Register16Memory {
+    match value {
+        [O, O] => Register16Memory::BC,
+        [O, I] => Register16Memory::DE,
+        [I, O] => Register16Memory::HLInc,
+        [I, I] => Register16Memory::HLDec,
     }
 }
 
-#[derive(Copy, Clone)]
 pub enum Condition {
     NotZero,
     Zero,
@@ -154,14 +121,12 @@ pub enum Condition {
     Carry,
 }
 
-impl Condition {
-    fn from(x: u8, offset: u8) -> Self {
-        match U2::from(x, offset) {
-            U2::Zero => Self::NotZero,
-            U2::One => Self::Zero,
-            U2::Two => Self::NotCarry,
-            U2::Three => Self::Carry,
-        }
+fn cond(pattern: BitPattern<2>) -> Condition {
+    match pattern {
+        [O, O] => Condition::NotZero,
+        [O, I] => Condition::Zero,
+        [I, O] => Condition::NotCarry,
+        [I, I] => Condition::Carry,
     }
 }
 
@@ -256,114 +221,107 @@ pub enum Instruction {
 
 impl Instruction {
     pub fn from(opcode: u8) -> Self {
-        match opcode {
+        match opcode.bits_msb_first() {
             // Misc
-            0x00 => Self::Nop,
-            0b0001_0000 => Self::Stop,
-            0b0010_0111 => Self::DecimalAdjustA,
+            [O, O, O, O, O, O, O, O] => Self::Nop,
+            [O, O, O, I, O, O, O, O] => Self::Stop,
+            [O, O, I, O, O, I, I, I] => Self::DecimalAdjustA,
 
             // Interrupt
-            0b0111_0110 => Self::Halt,
-            0b1111_1011 => Self::EnableInterrupt,
-            0b1111_0011 => Self::DisableInterrupt,
+            [O, I, I, I, O, I, I, O] => Self::Halt,
+            [I, I, I, I, I, O, I, I] => Self::EnableInterrupt,
+            [I, I, I, I, O, O, I, I] => Self::DisableInterrupt,
 
             // Load
-            x if (x & 0b1100_0111) == 0b0000_0110 => Self::LoadLiteral8(Register8::from(x, 3)),
-            x if (x & 0b1100_0000) == 0b0100_0000 => Self::LoadRegister8 {
-                src: Register8::from(x, 0),
-                dest: Register8::from(x, 3),
+            [O, O, a1, a2, a3, I, I, O] => Self::LoadLiteral8(r8([a1, a2, a3])),
+            [O, I, a1, a2, a3, b1, b2, b3] => Self::LoadRegister8 {
+                src: r8([b1, b2, b3]),
+                dest: r8([a1, a2, a3]),
             }, // Must be after halt, halt has same bit pattern as ld [hl], [hl]
-            x if (x & 0b1100_1111) == 0b0000_0001 => Self::LoadLiteral16(Register16::from(x, 4)),
-            x if (x & 0b1100_1111) == 0b0000_0010 => Self::LoadFromA(Register16Memory::from(x, 4)),
-            0b1110_1010 => Self::LoadFromAIntoLiteral16Pointer,
-            0b1110_0000 => Self::LoadFromAIntoLiteral8HighPointer,
-            0b1110_0010 => Self::LoadFromAIntoCHighPointer,
-            x if (x & 0b1100_1111) == 0b0000_1010 => Self::LoadIntoA(Register16Memory::from(x, 4)),
-            0b1111_1010 => Self::LoadFromLiteral16PointerIntoA,
-            0b1111_0000 => Self::LoadFromLiteral8HighPointerIntoA,
-            0b1111_0010 => Self::LoadFromCHighPointerIntoA,
+            [O, O, a1, a2, O, O, O, I] => Self::LoadLiteral16(r16([a1, a2])),
+            [O, O, a1, a2, O, O, I, O] => Self::LoadFromA(r16mem([a1, a2])),
+            [I, I, I, O, I, O, I, O] => Self::LoadFromAIntoLiteral16Pointer,
+            [I, I, I, O, O, O, O, O] => Self::LoadFromAIntoLiteral8HighPointer,
+            [I, I, I, O, O, O, I, O] => Self::LoadFromAIntoCHighPointer,
+            [O, O, a1, a2, I, O, I, O] => Self::LoadIntoA(r16mem([a1, a2])),
+            [I, I, I, I, I, O, I, O] => Self::LoadFromLiteral16PointerIntoA,
+            [I, I, I, I, O, O, O, O] => Self::LoadFromLiteral8HighPointerIntoA,
+            [I, I, I, I, O, O, I, O] => Self::LoadFromCHighPointerIntoA,
 
             // 8 Bit arithmetic
-            x if (x & 0b1100_0111) == 0b0000_0100 => {
-                Self::IncrementRegister8(Register8::from(x, 3))
-            }
-            x if (x & 0b1100_0111) == 0b0000_0101 => {
-                Self::DecrementRegister8(Register8::from(x, 3))
-            }
-            x if (x & 0b1111_1000) == 0b1000_0000 => Self::AddToA(Register8::from(x, 0)),
-            0b1100_0110 => Self::AddLiteral8ToA,
-            x if (x & 0b1111_1000) == 0b1000_1000 => Self::AddToACarry(Register8::from(x, 0)),
-            0b1100_1110 => Self::AddLiteral8ToACarry,
-            x if (x & 0b1111_1000) == 0b1001_0000 => Self::SubtractFromA(Register8::from(x, 0)),
-            0b1101_0110 => Self::SubtractLiteral8FromA,
-            x if (x & 0b1111_1000) == 0b1001_1000 => {
-                Self::SubtractFromACarry(Register8::from(x, 0))
-            }
-            0b1101_1110 => Self::SubtractLiteral8FromACarry,
-            x if (x & 0b1111_1000) == 0b1011_1000 => Self::CompareToA(Register8::from(x, 0)),
-            0b1111_1110 => Self::CompareLiteral8ToA,
+            [O, O, a1, a2, a3, I, O, O] => Self::IncrementRegister8(r8([a1, a2, a3])),
+            [O, O, a1, a2, a3, I, O, I] => Self::DecrementRegister8(r8([a1, a2, a3])),
+            [I, O, O, O, O, a1, a2, a3] => Self::AddToA(r8([a1, a2, a3])),
+            [I, I, O, O, O, I, I, O] => Self::AddLiteral8ToA,
+            [I, O, O, O, I, a1, a2, a3] => Self::AddToACarry(r8([a1, a2, a3])),
+            [I, I, O, O, I, I, I, O] => Self::AddLiteral8ToACarry,
+            [I, O, O, I, O, a1, a2, a3] => Self::SubtractFromA(r8([a1, a2, a3])),
+            [I, I, O, I, O, I, I, O] => Self::SubtractLiteral8FromA,
+            [I, O, O, I, I, a1, a2, a3] => Self::SubtractFromACarry(r8([a1, a2, a3])),
+            [I, I, O, I, I, I, I, O] => Self::SubtractLiteral8FromACarry,
+            [I, O, I, I, I, a1, a2, a3] => Self::CompareToA(r8([a1, a2, a3])),
+            [I, I, I, I, I, I, I, O] => Self::CompareLiteral8ToA,
 
             // 16 Bit arithmetic
-            x if (x & 0b1100_1111) == 0b0000_0011 => {
-                Self::IncrementRegister16(Register16::from(x, 4))
-            }
-            x if (x & 0b1100_1111) == 0b0000_1011 => {
-                Self::DecrementRegister16(Register16::from(x, 4))
-            }
-            x if (x & 0b1100_1111) == 0b0000_1001 => {
-                Self::AddRegister16ToHL(Register16::from(x, 4))
-            }
+            [O, O, a1, a2, O, O, I, I] => Self::IncrementRegister16(r16([a1, a2])),
+            [O, O, a1, a2, I, O, I, I] => Self::DecrementRegister16(r16([a1, a2])),
+            [O, O, a1, a2, I, O, O, I] => Self::AddRegister16ToHL(r16([a1, a2])),
 
             // Bitwise logic
-            0b0010_1111 => Self::ComplementA,
-            x if (x & 0b1111_1000) == 0b1010_0000 => Self::AndWithA(Register8::from(x, 0)),
-            0b1110_0110 => Self::AndLiteral8WithA,
-            x if (x & 0b1111_1000) == 0b1010_1000 => Self::XorWithA(Register8::from(x, 0)),
-            0b1110_1110 => Self::XorLiteral8WithA,
-            x if (x & 0b1111_1000) == 0b1011_0000 => Self::OrWithA(Register8::from(x, 0)),
-            0b1111_0110 => Self::OrLiteral8WithA,
+            [O, O, I, O, I, I, I, I] => Self::ComplementA,
+            [I, O, I, O, O, a1, a2, a3] => Self::AndWithA(r8([a1, a2, a3])), // TODO Check
+            [I, I, I, O, O, I, I, O] => Self::AndLiteral8WithA,
+            [I, O, I, O, I, a1, a2, a3] => Self::XorWithA(r8([a1, a2, a3])),
+            [I, I, I, O, I, I, I, O] => Self::XorLiteral8WithA,
+            [I, O, I, I, O, a1, a2, a3] => Self::OrWithA(r8([a1, a2, a3])),
+            [I, I, I, I, O, I, I, O] => Self::OrLiteral8WithA,
 
             // Bit shift
-            0b0000_0111 => Self::RotateLeftA,
-            0b0001_0111 => Self::RotateLeftCarryA,
-            0b0000_1111 => Self::RotateRightA,
-            0b0001_1111 => Self::RotateRightCarryA,
+            [O, O, O, O, O, I, I, I] => Self::RotateLeftA,
+            [O, O, O, I, O, I, I, I] => Self::RotateLeftCarryA,
+            [O, O, O, O, I, I, I, I] => Self::RotateRightA,
+            [O, O, O, I, I, I, I, I] => Self::RotateRightCarryA,
 
             // Jump and subroutine
-            0b0001_1000 => Self::JumpRelative,
-            x if (x & 0b1110_0111) == 0b0010_0000 => {
-                Self::ConditionalJumpRelative(Condition::from(x, 3))
-            }
-            0b1100_0011 => Self::Jump,
-            x if (x & 0b1110_0111) == 0b1100_0010 => Self::ConditionalJump(Condition::from(x, 3)),
-            0b1110_1001 => Self::JumpHL,
-            0b1100_1101 => Self::Call,
-            x if (x & 0b1110_0111) == 0b1100_0100 => Self::ConditionalCall(Condition::from(x, 3)),
-            x if (x & 0b1100_0111) == 0b1100_0111 => Self::Restart(U3::from(x, 3)),
-            0b1100_1001 => Self::Return,
-            x if (x & 0b1110_0111) == 0b1100_0000 => Self::ConditionalReturn(Condition::from(x, 3)),
-            0b1101_1001 => Self::ReturnInterrupt,
+            [O, O, O, I, I, O, O, O] => Self::JumpRelative,
+            [O, O, I, a1, a2, O, O, O] => Self::ConditionalJumpRelative(cond([a1, a2])),
+            [I, I, O, O, O, O, I, I] => Self::Jump,
+            [I, I, O, a1, a2, O, I, O] => Self::ConditionalJump(cond([a1, a2])),
+            [I, I, I, O, I, O, O, I] => Self::JumpHL,
+            [I, I, O, O, I, I, O, I] => Self::Call,
+            [I, I, O, a1, a2, I, O, O] => Self::ConditionalCall(cond([a1, a2])),
+            [I, I, a1, a2, a3, I, I, I] => Self::Restart(u3([a1, a2, a3])),
+            [I, I, O, O, I, O, O, I] => Self::Return,
+            [I, I, O, a1, a2, O, O, O] => Self::ConditionalReturn(cond([a1, a2])),
+            [I, I, O, I, I, O, O, I] => Self::ReturnInterrupt,
 
             // Carry flag
-            0b0011_0111 => Self::SetCarryFlag,
-            0b0011_1111 => Self::ComplementCarryFlag,
+            [O, O, I, I, O, I, I, I] => Self::SetCarryFlag,
+            [O, O, I, I, I, I, I, I] => Self::ComplementCarryFlag,
 
             // Stack manipulation
-            x if (x & 0b1100_1111) == 0b1100_0101 => Self::Push(Register16Stack::from(x, 4)),
-            x if (x & 0b1100_1111) == 0b1100_0001 => Self::Pop(Register16Stack::from(x, 4)),
-            0b1110_1000 => Self::AddSignedLiteral8ToStackPointer,
-            0b0000_1000 => Self::LoadFromStackPointerIntoLiteral16Pointer,
-            0b1111_1000 => Self::LoadFromStackPointerPlusSignedLiteral8IntoHL,
-            0b1111_1001 => Self::LoadFromHLIntoStackPointer,
+            [I, I, a1, a2, O, I, O, I] => Self::Push(r16stk([a1, a2])),
+            [I, I, a1, a2, O, O, O, I] => Self::Pop(r16stk([a1, a2])),
+            [I, I, I, O, I, O, O, O] => Self::AddSignedLiteral8ToStackPointer,
+            [O, O, O, O, I, O, O, O] => Self::LoadFromStackPointerIntoLiteral16Pointer,
+            [I, I, I, I, I, O, O, O] => Self::LoadFromStackPointerPlusSignedLiteral8IntoHL,
+            [I, I, I, I, I, O, O, I] => Self::LoadFromHLIntoStackPointer,
 
             // 16 Bit instructions
-            0xCB => Self::Prefixed,
+            [I, I, O, O, I, O, I, I] => Self::Prefixed,
 
-            0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
-                Self::Invalid
-            }
-
-            _ => unreachable!(),
+            // Invalid opcodes
+            [I, I, O, I, O, O, I, I] => Self::Invalid,
+            [I, I, I, O, O, O, I, I] => Self::Invalid,
+            [I, I, I, O, O, I, O, O] => Self::Invalid,
+            [I, I, I, I, O, I, O, O] => Self::Invalid,
+            [I, I, O, I, I, O, I, I] => Self::Invalid,
+            [I, I, I, O, I, O, I, I] => Self::Invalid,
+            [I, I, I, O, I, I, O, O] => Self::Invalid,
+            [I, I, I, I, I, I, O, O] => Self::Invalid,
+            [I, I, O, I, I, I, O, I] => Self::Invalid,
+            [I, I, I, O, I, I, O, I] => Self::Invalid,
+            [I, I, I, I, I, I, O, I] => Self::Invalid,
         }
     }
 }
@@ -387,33 +345,18 @@ pub enum PrefixedInstruction {
 
 impl PrefixedInstruction {
     pub fn from(opcode: u8) -> Self {
-        match opcode {
-            x if (x & 0b1111_1000) == 0b0000_0000 => Self::RotateLeft(Register8::from(x, 0)),
-            x if (x & 0b1111_1000) == 0b0000_1000 => Self::RotateRight(Register8::from(x, 0)),
-            x if (x & 0b1111_1000) == 0b0001_0000 => {
-                Self::RotateLeftThroughCarry(Register8::from(x, 0))
-            }
-            x if (x & 0b1111_1000) == 0b0001_1000 => {
-                Self::RotateRightThroughCarry(Register8::from(x, 0))
-            }
-            x if (x & 0b1111_1000) == 0b0010_0000 => {
-                Self::ShiftLeftArithmetic(Register8::from(x, 0))
-            }
-            x if (x & 0b1111_1000) == 0b0010_1000 => {
-                Self::ShiftRightArithmetic(Register8::from(x, 0))
-            }
-            x if (x & 0b1111_1000) == 0b0011_0000 => Self::Swap(Register8::from(x, 0)),
-            x if (x & 0b1111_1000) == 0b0011_1000 => Self::ShiftRightLogical(Register8::from(x, 0)),
-            x if (x & 0b1100_0000) == 0b0100_0000 => {
-                Self::CheckBit(Register8::from(x, 0), U3::from(x, 3))
-            }
-            x if (x & 0b1100_0000) == 0b1000_0000 => {
-                Self::ResetBit(Register8::from(x, 0), U3::from(x, 3))
-            }
-            x if (x & 0b1100_0000) == 0b1100_0000 => {
-                Self::SetBit(Register8::from(x, 0), U3::from(x, 3))
-            }
-            _ => unreachable!(),
+        match opcode.bits_msb_first() {
+            [O, O, O, O, O, x1, x2, x3] => Self::RotateLeft(r8([x1, x2, x3])),
+            [O, O, O, O, I, x1, x2, x3] => Self::RotateRight(r8([x1, x2, x3])),
+            [O, O, O, I, O, x1, x2, x3] => Self::RotateLeftThroughCarry(r8([x1, x2, x3])),
+            [O, O, O, I, I, x1, x2, x3] => Self::RotateRightThroughCarry(r8([x1, x2, x3])),
+            [O, O, I, O, O, x1, x2, x3] => Self::ShiftLeftArithmetic(r8([x1, x2, x3])),
+            [O, O, I, O, I, x1, x2, x3] => Self::ShiftRightArithmetic(r8([x1, x2, x3])),
+            [O, O, I, I, O, x1, x2, x3] => Self::Swap(r8([x1, x2, x3])),
+            [O, O, I, I, I, x1, x2, x3] => Self::ShiftRightLogical(r8([x1, x2, x3])),
+            [O, I, x1, x2, x3, y1, y2, y3] => Self::CheckBit(r8([y1, y2, y3]), u3([x1, x2, x3])),
+            [I, O, x1, x2, x3, y1, y2, y3] => Self::ResetBit(r8([y1, y2, y3]), u3([x1, x2, x3])),
+            [I, I, x1, x2, x3, y1, y2, y3] => Self::SetBit(r8([y1, y2, y3]), u3([x1, x2, x3])),
         }
     }
 }
