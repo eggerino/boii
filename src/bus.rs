@@ -17,7 +17,7 @@ impl Read for Bus {
     fn read(&self, address: u16) -> Result<u8, Error> {
         match address {
             0x0000..0x7FFF => self.cartridge.rom().read(address),
-            0xA000..0xBFFF => self.cartridge.ram().read(address - 0xA000),
+            0xA000..0xBFFF => self.cartridge.ram().read(address.saturating_sub(0xA000)),
             _ => Err(Error::SegFault { address }),
         }
         .map_err(|e| match e {
@@ -30,7 +30,10 @@ impl Write for Bus {
     fn write(&mut self, address: u16, value: u8) -> Result<(), Error> {
         match address {
             0x0000..0x7FFF => self.cartridge.rom_mut().write(address, value),
-            0xA000..0xBFFF => self.cartridge.ram_mut().write(address - 0xA000, value),
+            0xA000..0xBFFF => self
+                .cartridge
+                .ram_mut()
+                .write(address.saturating_sub(0xA000), value),
             _ => Err(Error::SegFault { address }),
         }
         .map_err(|e| match e {

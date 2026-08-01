@@ -26,12 +26,22 @@ struct Registers {
     mode: u8,
 }
 
+fn wrapping_mod(lhs: u8, rhs: u8) -> u8 {
+    if rhs != 0 {
+        lhs.rem_euclid(rhs)
+    } else {
+        lhs
+    }
+}
+
 fn offsets_with(reg: &Registers, rom_bank_count: u8) -> Offsets {
-    let rom_bank = ((match reg.rom_bank & ROM_BANK_REG_MASK {
-        0 => 1,
-        x => x,
-    } % rom_bank_count)
-        & ROM_BANK_REG_MASK) as usize;
+    let rom_bank = (wrapping_mod(
+        match reg.rom_bank & ROM_BANK_REG_MASK {
+            0 => 1,
+            x => x,
+        },
+        rom_bank_count,
+    ) & ROM_BANK_REG_MASK) as usize;
 
     let ram_bank = (reg.ram_bank & RAM_BANK_REG_MASK) as usize;
     let mode = (reg.mode & MODE_REG_MASK) == 1;

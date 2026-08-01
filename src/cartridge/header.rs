@@ -12,7 +12,6 @@ const ROM_VERSION_ADDR: usize = 0x014C;
 const HEADER_CHECKSUM_ADDR: usize = 0x014D;
 const GLOBAL_CHECKSUM_ADDR: usize = 0x014E;
 
-const HEADER_SIZE: usize = 0x0150;
 const TITLE_SIZE: usize = 0x0010;
 const NEW_LICENSEE_CODE_SIZE: usize = 0x0002;
 
@@ -473,9 +472,10 @@ const CARTRIDGE_TYPE_LOOKUP: [(u8, CartridgeType); 28] = [
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
-    NoHeader { rom_size: usize },
+    NoHeader,
     InvalidNintendoLogo(Box<[u8]>),
     InvalidTitleSection(Box<[u8]>),
+    InvalidNewLicenseeCodeEncoding,
     InvalidCartridgeType(u8),
     UnknownRomSize(u8),
     UnknownRamSize(u8),
@@ -554,21 +554,18 @@ pub struct ParseConfig {
 
 impl Header {
     pub fn parse(rom: &[u8], config: &ParseConfig) -> Result<Self> {
-        // Always check the header size to safely read from the address of the spec
-        check_header_size(rom)?;
-
         let title = parse_title(rom)?;
-        let cgb_flag = parse_cgb_flag(rom);
-        let new_licensee = parse_new_licensee_code(rom);
-        let sgb_flag = parse_sgb_flag(rom);
+        let cgb_flag = parse_cgb_flag(rom)?;
+        let new_licensee = parse_new_licensee_code(rom)?;
+        let sgb_flag = parse_sgb_flag(rom)?;
         let cartridge_type = parse_cartridge_type(rom)?;
         let rom_size = parse_rom_size(rom)?;
         let ram_size = parse_ram_size(rom)?;
         let destination_code = parse_destincation_code(rom)?;
-        let licensee = parse_old_licensee_code(rom, new_licensee);
-        let rom_version = parse_rom_version(rom);
-        let header_checksum = parse_header_checksum(rom);
-        let global_checksum = parse_global_checksum(rom);
+        let licensee = parse_old_licensee_code(rom, new_licensee)?;
+        let rom_version = parse_rom_version(rom)?;
+        let header_checksum = parse_header_checksum(rom)?;
+        let global_checksum = parse_global_checksum(rom)?;
 
         if config.check_nintento_logo {
             check_nintendo_logo(rom)?;
@@ -598,18 +595,12 @@ impl Header {
     }
 }
 
-fn check_header_size(rom: &[u8]) -> Result<()> {
-    if rom.len() < HEADER_SIZE {
-        Err(ParseError::NoHeader {
-            rom_size: rom.len(),
-        })
-    } else {
-        Ok(())
-    }
-}
-
 fn check_nintendo_logo(rom: &[u8]) -> Result<()> {
-    let logo = &rom[NINTENDO_LOGO_ADDR..NINTENDO_LOGO_ADDR + NINTENDO_LOGO_LITERAL.len()];
+    let logo = rom
+        .get(NINTENDO_LOGO_ADDR..)
+        .and_then(|x| x.get(..NINTENDO_LOGO_LITERAL.len()))
+        .ok_or(ParseError::NoHeader)?;
+
     if logo == NINTENDO_LOGO_LITERAL {
         Ok(())
     } else {
@@ -622,20 +613,28 @@ fn parse_title(rom: &[u8]) -> Result<String> {
     // Originally it represents the title as an ascii encoded string with trailing zeros as padding.
     // The last byte is later reused as the cgb flag. The 8-bit (which makes this byte an illegal ascii value)
     // is used as a discrimitor, whether the last bytes if the cgb flag or part of the title.
-    let raw = &rom[TITLE_ADDR..TITLE_ADDR + TITLE_SIZE];
+    let raw = rom
+        .get(TITLE_ADDR..TITLE_ADDR + TITLE_SIZE)
+        .ok_or(ParseError::NoHeader)?;
 
     let mut title = raw;
 
     // Chop off the cgb flag if its present
-    if title[TITLE_SIZE - 1] & 0b1000_0000 > 0 {
-        title = &title[..TITLE_SIZE - 1];
+    if let Some(last) = title.last()
+        && last & 0b1000_0000 > 0
+    {
+        title = title
+            .get(..TITLE_SIZE - 1)
+            .ok_or_else(|| ParseError::InvalidTitleSection(raw.into()))?;
     }
 
     // Chop off the trailing zero bytes added for padding
     while let Some(x) = title.last()
         && *x == 0
     {
-        title = &title[..title.len() - 1];
+        title = title
+            .get(..title.len().saturating_sub(1))
+            .ok_or_else(|| ParseError::InvalidTitleSection(raw.into()))?;
     }
 
     str::from_utf8(title)
@@ -643,110 +642,120 @@ fn parse_title(rom: &[u8]) -> Result<String> {
         .map_err(|_| ParseError::InvalidTitleSection(raw.into()))
 }
 
-fn parse_cgb_flag(rom: &[u8]) -> CgbFlag {
-    let flag = rom[CGB_FLAG_ADDR];
+fn parse_cgb_flag(rom: &[u8]) -> Result<CgbFlag> {
+    let flag = rom.get(CGB_FLAG_ADDR).ok_or(ParseError::NoHeader)?;
 
     // Check if the flag is part of the title (8-bit is the discrimator, see `parse_title` for more details)
     if flag & 0b1000_0000 == 0 {
         // Original use case as title -> pre cgb
-        return CgbFlag::Monochrom;
+        return Ok(CgbFlag::Monochrom);
     }
 
     // 7-Bit determines the color mode
     if flag & 0b0100_0000 > 0 {
-        CgbFlag::Color
+        Ok(CgbFlag::Color)
     } else {
-        CgbFlag::Monochrom
+        Ok(CgbFlag::Monochrom)
     }
 }
 
-fn parse_new_licensee_code(rom: &[u8]) -> Option<String> {
-    let key = str::from_utf8(
-        &rom[NEW_LICENSEE_CODE_ADDR..NEW_LICENSEE_CODE_ADDR + NEW_LICENSEE_CODE_SIZE],
-    )
-    .ok()?;
+fn parse_new_licensee_code(rom: &[u8]) -> Result<Option<String>> {
+    let raw = rom
+        .get(NEW_LICENSEE_CODE_ADDR..NEW_LICENSEE_CODE_ADDR + NEW_LICENSEE_CODE_SIZE)
+        .ok_or(ParseError::NoHeader)?;
+    let key = str::from_utf8(raw).map_err(|_| ParseError::InvalidNewLicenseeCodeEncoding)?;
 
-    NEW_LICENSEE_CODE_LOOKUP
+    Ok(NEW_LICENSEE_CODE_LOOKUP
         .binary_search_by_key(&key, |&(k, _)| k)
         .ok()
         .and_then(|i| NEW_LICENSEE_CODE_LOOKUP.get(i))
-        .map(|&(_, x)| String::from(x))
+        .map(|&(_, x)| String::from(x)))
 }
 
-fn parse_sgb_flag(rom: &[u8]) -> SgbFlag {
-    let flag = rom[SGB_FLAG_ADDR];
+fn parse_sgb_flag(rom: &[u8]) -> Result<SgbFlag> {
+    let flag = rom.get(SGB_FLAG_ADDR).ok_or(ParseError::NoHeader)?;
     match flag {
-        0x03 => SgbFlag::Use,
-        _ => SgbFlag::Ignore(flag),
+        0x03 => Ok(SgbFlag::Use),
+        _ => Ok(SgbFlag::Ignore(*flag)),
     }
 }
 
 fn parse_cartridge_type(rom: &[u8]) -> Result<CartridgeType> {
-    let key = rom[CARTRIDGE_TYPE_ADDR];
+    let key = rom.get(CARTRIDGE_TYPE_ADDR).ok_or(ParseError::NoHeader)?;
     CARTRIDGE_TYPE_LOOKUP
-        .binary_search_by_key(&key, |&(k, _)| k)
+        .binary_search_by_key(key, |&(k, _)| k)
         .ok()
         .and_then(|i| CARTRIDGE_TYPE_LOOKUP.get(i))
         .map(|(_, ct)| ct.clone())
-        .ok_or(ParseError::InvalidCartridgeType(key))
+        .ok_or(ParseError::InvalidCartridgeType(*key))
 }
 
 fn parse_rom_size(rom: &[u8]) -> Result<usize> {
-    let size = match rom[ROM_SIZE_ADDR] {
-        0x00 => 32 * 1024,
-        0x01 => 64 * 1024,
-        0x02 => 128 * 1024,
-        0x03 => 256 * 1024,
-        0x04 => 512 * 1024,
-        0x05 => 1024 * 1024,
-        0x06 => 2 * 1024 * 1024,
-        0x07 => 4 * 1024 * 1024,
-        0x08 => 8 * 1024 * 1024,
-        x => Err(ParseError::UnknownRomSize(x))?,
-    };
-    Ok(size)
+    rom.get(ROM_SIZE_ADDR)
+        .ok_or(ParseError::NoHeader)
+        .and_then(|k| match k {
+            0x00 => Ok(32 * 1024),
+            0x01 => Ok(64 * 1024),
+            0x02 => Ok(128 * 1024),
+            0x03 => Ok(256 * 1024),
+            0x04 => Ok(512 * 1024),
+            0x05 => Ok(1024 * 1024),
+            0x06 => Ok(2 * 1024 * 1024),
+            0x07 => Ok(4 * 1024 * 1024),
+            0x08 => Ok(8 * 1024 * 1024),
+            x => Err(ParseError::UnknownRomSize(*x)),
+        })
 }
 
 fn parse_ram_size(rom: &[u8]) -> Result<usize> {
-    let size = match rom[RAM_SIZE_ADDR] {
-        0x00 => 0,
-        0x02 => 8 * 1024,
-        0x03 => 32 * 1024,
-        0x04 => 128 * 1024,
-        0x05 => 64 * 1024,
-        x => Err(ParseError::UnknownRamSize(x))?,
-    };
-    Ok(size)
+    rom.get(RAM_SIZE_ADDR)
+        .ok_or(ParseError::NoHeader)
+        .and_then(|k| match k {
+            0x00 => Ok(0),
+            0x02 => Ok(8 * 1024),
+            0x03 => Ok(32 * 1024),
+            0x04 => Ok(128 * 1024),
+            0x05 => Ok(64 * 1024),
+            x => Err(ParseError::UnknownRamSize(*x)),
+        })
 }
 
 fn parse_destincation_code(rom: &[u8]) -> Result<DestinationCode> {
-    let code = match rom[DESTINATION_CODE_ADDR] {
-        0x00 => DestinationCode::Japan,
-        0x01 => DestinationCode::Oversea,
-        x => Err(ParseError::InvalidDestionationCode(x))?,
-    };
-    Ok(code)
+    rom.get(DESTINATION_CODE_ADDR)
+        .ok_or(ParseError::NoHeader)
+        .and_then(|x| match x {
+            0x00 => Ok(DestinationCode::Japan),
+            0x01 => Ok(DestinationCode::Oversea),
+            x => Err(ParseError::InvalidDestionationCode(*x)),
+        })
 }
 
-fn parse_old_licensee_code(rom: &[u8], new_code: Option<String>) -> Option<String> {
-    let key = rom[OLD_LICENSEE_CODE_ADDR];
-    if key == 33 {
-        return new_code;
-    }
-
-    OLD_LICENSEE_CODE_LOOKUP
-        .binary_search_by_key(&key, |&(k, _)| k)
-        .ok()
-        .and_then(|i| OLD_LICENSEE_CODE_LOOKUP.get(i))
-        .map(|&(_, x)| String::from(x))
+fn parse_old_licensee_code(rom: &[u8], new_code: Option<String>) -> Result<Option<String>> {
+    rom.get(OLD_LICENSEE_CODE_ADDR)
+        .ok_or(ParseError::NoHeader)
+        .map(|k| {
+            if *k == 0x33 {
+                new_code
+            } else {
+                OLD_LICENSEE_CODE_LOOKUP
+                    .binary_search_by_key(k, |&(k, _)| k)
+                    .ok()
+                    .and_then(|i| OLD_LICENSEE_CODE_LOOKUP.get(i))
+                    .map(|&(_, x)| String::from(x))
+            }
+        })
 }
 
-fn parse_rom_version(rom: &[u8]) -> u8 {
-    rom[ROM_VERSION_ADDR]
+fn parse_rom_version(rom: &[u8]) -> Result<u8> {
+    rom.get(ROM_VERSION_ADDR)
+        .copied()
+        .ok_or(ParseError::NoHeader)
 }
 
-fn parse_header_checksum(rom: &[u8]) -> u8 {
-    rom[HEADER_CHECKSUM_ADDR]
+fn parse_header_checksum(rom: &[u8]) -> Result<u8> {
+    rom.get(HEADER_CHECKSUM_ADDR)
+        .copied()
+        .ok_or(ParseError::NoHeader)
 }
 
 fn check_header_checksum(rom: &[u8], expected: u8) -> Result<()> {
@@ -762,16 +771,30 @@ fn check_header_checksum(rom: &[u8], expected: u8) -> Result<()> {
     }
 }
 
-fn parse_global_checksum(rom: &[u8]) -> u16 {
-    (rom[GLOBAL_CHECKSUM_ADDR] as u16) << 8 | rom[GLOBAL_CHECKSUM_ADDR + 1] as u16
+fn parse_global_checksum(rom: &[u8]) -> Result<u16> {
+    let hight_byte = rom
+        .get(GLOBAL_CHECKSUM_ADDR)
+        .ok_or(ParseError::NoHeader)
+        .map(|x| (*x as u16) << 8)?;
+
+    let low_byte = rom
+        .get(GLOBAL_CHECKSUM_ADDR + 1)
+        .ok_or(ParseError::NoHeader)
+        .map(|x| *x as u16)?;
+
+    Ok(hight_byte | low_byte)
 }
 
 fn check_global_checksum(rom: &[u8], expected: u16) -> Result<()> {
+    let excluded_bytes = rom.get(GLOBAL_CHECKSUM_ADDR).and_then(|x| {
+        rom.get(GLOBAL_CHECKSUM_ADDR + 1)
+            .map(|y| (*x as u16).wrapping_add(*y as u16))
+    });
+
     let actual = rom
         .iter()
         .fold(0, |acc: u16, x| acc.wrapping_add(*x as u16))
-        .wrapping_sub(rom[GLOBAL_CHECKSUM_ADDR] as u16)
-        .wrapping_sub(rom[GLOBAL_CHECKSUM_ADDR + 1] as u16);
+        .wrapping_sub(excluded_bytes.unwrap_or_default());
 
     if expected == actual {
         Ok(())

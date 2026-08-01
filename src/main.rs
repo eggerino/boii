@@ -1,10 +1,12 @@
+use std::error::Error;
+
 use boii::{
     bus::Bus,
     cartridge::{Cartridge, ParseConfig},
     memory::Write,
 };
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let rom = [0; 10];
     let rom_parse_config = ParseConfig::default();
 
@@ -13,4 +15,6 @@ fn main() {
     let mut bus = Bus::new(cart);
 
     bus.write(0, 0).unwrap();
+
+    Ok(())
 }
