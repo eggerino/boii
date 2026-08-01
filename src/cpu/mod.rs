@@ -5,7 +5,7 @@
 
 // mod imd;
 pub mod instr;
-// mod registers;
+pub mod registers;
 
 // pub struct Cpu<T>
 // where

@@ -51,8 +51,8 @@ pub struct Registers {
     pub prog_counter: u16,
 }
 
-impl Registers {
-    pub fn new() -> Self {
+impl Default for Registers {
+    fn default() -> Self {
         Self {
             af: 0,
             bc: 0,
@@ -62,7 +62,9 @@ impl Registers {
             prog_counter: 0x0100,
         }
     }
+}
 
+impl Registers {
     #[inline]
     pub fn get_a(&self) -> u8 {
         get_high_byte(self.af)
@@ -200,7 +202,7 @@ mod tests {
 
     #[test]
     fn af_reg() {
-        let mut r = Registers::new();
+        let mut r = Registers::default();
 
         r.af = 0x1200;
         assert_eq!(r.get_a(), 0x12);
@@ -248,7 +250,7 @@ mod tests {
 
     #[test]
     fn bc_reg() {
-        let mut r = Registers::new();
+        let mut r = Registers::default();
 
         r.bc = 0x0102;
         assert_eq!(r.get_b(), 0x01);
@@ -261,7 +263,7 @@ mod tests {
 
     #[test]
     fn de_reg() {
-        let mut r = Registers::new();
+        let mut r = Registers::default();
 
         r.de = 0x0102;
         assert_eq!(r.get_d(), 0x01);
@@ -274,7 +276,7 @@ mod tests {
 
     #[test]
     fn hl_reg() {
-        let mut r = Registers::new();
+        let mut r = Registers::default();
 
         r.hl = 0x0102;
         assert_eq!(r.get_h(), 0x01);
