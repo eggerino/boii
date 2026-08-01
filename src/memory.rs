@@ -16,7 +16,7 @@ pub trait Write {
 impl Read for [u8] {
     fn read(&self, address: u16) -> Result<u8> {
         self.get(address as usize)
-            .map(|x| *x)
+            .copied()
             .ok_or(Error::SegFault { address })
     }
 }

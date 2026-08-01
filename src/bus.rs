@@ -15,13 +15,12 @@ impl Bus {
 
 impl Read for Bus {
     fn read(&self, address: u16) -> Result<u8, Error> {
-        let result = match address {
+        match address {
             0x0000..0x7FFF => self.cartridge.rom().read(address),
             0xA000..0xBFFF => self.cartridge.ram().read(address - 0xA000),
             _ => Err(Error::SegFault { address }),
-        };
-
-        result.map_err(|e| match e {
+        }
+        .map_err(|e| match e {
             Error::SegFault { address: _ } => Error::SegFault { address },
         })
     }
@@ -29,13 +28,12 @@ impl Read for Bus {
 
 impl Write for Bus {
     fn write(&mut self, address: u16, value: u8) -> Result<(), Error> {
-        let result = match address {
+        match address {
             0x0000..0x7FFF => self.cartridge.rom_mut().write(address, value),
             0xA000..0xBFFF => self.cartridge.ram_mut().write(address - 0xA000, value),
             _ => Err(Error::SegFault { address }),
-        };
-
-        result.map_err(|e| match e {
+        }
+        .map_err(|e| match e {
             Error::SegFault { address: _ } => Error::SegFault { address },
         })
     }

@@ -82,7 +82,7 @@ impl MemoryBankController for MBC1 {
     fn read_rom(&self, backing_rom: &[u8], address: u16) -> Result<u8, Error> {
         backing_rom
             .get(backing_rom_addr(address, &self.offsets))
-            .map(|x| *x)
+            .copied()
             .ok_or(Error::SegFault { address })
     }
 
@@ -101,7 +101,7 @@ impl MemoryBankController for MBC1 {
     fn read_ram(&self, backing_ram: &[u8], address: u16) -> Result<u8, Error> {
         backing_ram
             .get(backing_ram_addr(address, &self.offsets))
-            .map(|x| *x)
+            .copied()
             .ok_or(Error::SegFault { address })
     }
 

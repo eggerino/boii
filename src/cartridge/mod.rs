@@ -155,7 +155,7 @@ pub struct RomMut<'a>(&'a mut dyn MemoryBankController, &'a mut [u8]);
 
 impl<'a> Write for RomMut<'a> {
     fn write(&mut self, address: u16, value: u8) -> Result<(), memory::Error> {
-        self.0.write_rom(&mut self.1, address, value)
+        self.0.write_rom(self.1, address, value)
     }
 }
 
@@ -163,7 +163,7 @@ pub struct Ram<'a>(&'a dyn MemoryBankController, &'a [u8]);
 
 impl<'a> Read for Ram<'a> {
     fn read(&self, address: u16) -> Result<u8, memory::Error> {
-        self.0.read_ram(&self.1, address)
+        self.0.read_ram(self.1, address)
     }
 }
 
@@ -171,6 +171,6 @@ pub struct RamMut<'a>(&'a mut dyn MemoryBankController, &'a mut [u8]);
 
 impl<'a> Write for RamMut<'a> {
     fn write(&mut self, address: u16, value: u8) -> Result<(), memory::Error> {
-        self.0.write_ram(&mut self.1, address, value)
+        self.0.write_ram(self.1, address, value)
     }
 }

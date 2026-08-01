@@ -22,6 +22,455 @@ const NINTENDO_LOGO_LITERAL: [u8; 0x0030] = [
     0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
 ];
 
+const NEW_LICENSEE_CODE_LOOKUP: [(&str, &str); 63] = [
+    ("01", "Nintendo Research & Development 1"),
+    ("08", "Capcom"),
+    ("13", "EA (Electronic Arts)"),
+    ("18", "Hudson Soft"),
+    ("19", "B-AI"),
+    ("20", "KSS"),
+    ("22", "Planning Office WADA"),
+    ("24", "PCM Complete"),
+    ("25", "San-X"),
+    ("28", "Kemco"),
+    ("29", "SETA Corporation"),
+    ("30", "Viacom"),
+    ("31", "Nintendo"),
+    ("32", "Bandai"),
+    ("33", "Ocean Software/Acclaim Entertainment"),
+    ("34", "Konami"),
+    ("35", "HectorSoft"),
+    ("37", "Taito"),
+    ("38", "Hudson Soft"),
+    ("39", "Banpresto"),
+    ("41", "Ubi Soft1"),
+    ("42", "Atlus"),
+    ("44", "Malibu Interactive"),
+    ("46", "Angel"),
+    ("47", "Bullet-Proof Software2"),
+    ("49", "Irem"),
+    ("50", "Absolute"),
+    ("51", "Acclaim Entertainment"),
+    ("52", "Activision"),
+    ("53", "Sammy USA Corporation"),
+    ("54", "Konami"),
+    ("55", "Hi Tech Expressions"),
+    ("56", "LJN"),
+    ("57", "Matchbox"),
+    ("58", "Mattel"),
+    ("59", "Milton Bradley Company"),
+    ("60", "Titus Interactive"),
+    ("61", "Virgin Games Ltd.3"),
+    ("64", "Lucasfilm Games4"),
+    ("67", "Ocean Software"),
+    ("69", "EA (Electronic Arts)"),
+    ("70", "Infogrames5"),
+    ("71", "Interplay Entertainment"),
+    ("72", "Broderbund"),
+    ("73", "Sculptured Software6"),
+    ("75", "The Sales Curve Limited7"),
+    ("78", "THQ"),
+    ("79", "Accolade8"),
+    ("80", "Misawa Entertainment"),
+    ("83", "LOZC G."),
+    ("86", "Tokuma Shoten"),
+    ("87", "Tsukuda Original"),
+    ("91", "Chunsoft Co.9"),
+    ("92", "Video System"),
+    ("93", "Ocean Software/Acclaim Entertainment"),
+    ("95", "Varie"),
+    ("96", "Yonezawa10/S'Pal"),
+    ("97", "Kaneko"),
+    ("99", "Pack-In-Video"),
+    ("9H", "Bottom Up"),
+    ("A4", "Konami (Yu-Gi-Oh!)"),
+    ("BL", "MTO"),
+    ("DK", "Kodansha"),
+];
+
+const OLD_LICENSEE_CODE_LOOKUP: [(u8, &str); 145] = [
+    (0x01, "Nintendo"),
+    (0x08, "Capcom"),
+    (0x09, "HOT-B"),
+    (0x0A, "Jaleco"),
+    (0x0B, "Coconuts Japan"),
+    (0x0C, "Elite Systems"),
+    (0x13, "EA (Electronic Arts)"),
+    (0x18, "Hudson Soft"),
+    (0x19, "ITC Entertainment"),
+    (0x1A, "Yanoman"),
+    (0x1D, "Japan Clary"),
+    (0x1F, "Virgin Games Ltd.3"),
+    (0x24, "PCM Complete"),
+    (0x25, "San-X"),
+    (0x28, "Kemco"),
+    (0x29, "SETA Corporation"),
+    (0x30, "Infogrames5"),
+    (0x31, "Nintendo"),
+    (0x32, "Bandai"),
+    (0x34, "Konami"),
+    (0x35, "HectorSoft"),
+    (0x38, "Capcom"),
+    (0x39, "Banpresto"),
+    (0x3C, "Entertainment Interactive (stub)"),
+    (0x3E, "Gremlin"),
+    (0x41, "Ubi Soft1"),
+    (0x42, "Atlus"),
+    (0x44, "Malibu Interactive"),
+    (0x46, "Angel"),
+    (0x47, "Spectrum HoloByte"),
+    (0x49, "Irem"),
+    (0x4A, "Virgin Games Ltd.3"),
+    (0x4D, "Malibu Interactive"),
+    (0x4F, "U.S. Gold"),
+    (0x50, "Absolute"),
+    (0x51, "Acclaim Entertainment"),
+    (0x52, "Activision"),
+    (0x53, "Sammy USA Corporation"),
+    (0x54, "GameTek"),
+    (0x55, "Park Place15"),
+    (0x56, "LJN"),
+    (0x57, "Matchbox"),
+    (0x59, "Milton Bradley Company"),
+    (0x5A, "Mindscape"),
+    (0x5B, "Romstar"),
+    (0x5C, "Naxat Soft16"),
+    (0x5D, "Tradewest"),
+    (0x60, "Titus Interactive"),
+    (0x61, "Virgin Games Ltd.3"),
+    (0x67, "Ocean Software"),
+    (0x69, "EA (Electronic Arts)"),
+    (0x6E, "Elite Systems"),
+    (0x6F, "Electro Brain"),
+    (0x70, "Infogrames5"),
+    (0x71, "Interplay Entertainment"),
+    (0x72, "Broderbund"),
+    (0x73, "Sculptured Software6"),
+    (0x75, "The Sales Curve Limited7"),
+    (0x78, "THQ"),
+    (0x79, "Accolade8"),
+    (0x7A, "Triffix Entertainment"),
+    (0x7C, "MicroProse"),
+    (0x7F, "Kemco"),
+    (0x80, "Misawa Entertainment"),
+    (0x83, "LOZC G."),
+    (0x86, "Tokuma Shoten"),
+    (0x8B, "Bullet-Proof Software2"),
+    (0x8C, "Vic Tokai Corp.17"),
+    (0x8E, "Ape Inc.18"),
+    (0x8F, "I’Max19"),
+    (0x91, "Chunsoft Co.9"),
+    (0x92, "Video System"),
+    (0x93, "Tsubaraya Productions"),
+    (0x95, "Varie"),
+    (0x96, "Yonezawa10/S’Pal"),
+    (0x97, "Kemco"),
+    (0x99, "Arc"),
+    (0x9A, "Nihon Bussan"),
+    (0x9B, "Tecmo"),
+    (0x9C, "Imagineer"),
+    (0x9D, "Banpresto"),
+    (0x9F, "Nova"),
+    (0xA1, "Hori Electric"),
+    (0xA2, "Bandai"),
+    (0xA4, "Konami"),
+    (0xA6, "Kawada"),
+    (0xA7, "Takara"),
+    (0xA9, "Technos Japan"),
+    (0xAA, "Broderbund"),
+    (0xAC, "Toei Animation"),
+    (0xAD, "Toho"),
+    (0xAF, "Namco"),
+    (0xB0, "Acclaim Entertainment"),
+    (0xB1, "ASCII Corporation or Nexsoft"),
+    (0xB2, "Bandai"),
+    (0xB4, "Square Enix"),
+    (0xB6, "HAL Laboratory"),
+    (0xB7, "SNK"),
+    (0xB9, "Pony Canyon"),
+    (0xBA, "Culture Brain"),
+    (0xBB, "Sunsoft"),
+    (0xBD, "Sony Imagesoft"),
+    (0xBF, "Sammy Corporation"),
+    (0xC0, "Taito"),
+    (0xC2, "Kemco"),
+    (0xC3, "Square"),
+    (0xC4, "Tokuma Shoten"),
+    (0xC5, "Data East"),
+    (0xC6, "Tonkin House"),
+    (0xC8, "Koei"),
+    (0xC9, "UFL"),
+    (0xCA, "Ultra Games"),
+    (0xCB, "VAP, Inc."),
+    (0xCC, "Use Corporation"),
+    (0xCD, "Meldac"),
+    (0xCE, "Pony Canyon"),
+    (0xCF, "Angel"),
+    (0xD0, "Taito"),
+    (0xD1, "SOFEL (Software Engineering Lab)"),
+    (0xD2, "Quest"),
+    (0xD3, "Sigma Enterprises"),
+    (0xD4, "ASK Kodansha Co."),
+    (0xD6, "Naxat Soft16"),
+    (0xD7, "Copya System"),
+    (0xD9, "Banpresto"),
+    (0xDA, "Tomy"),
+    (0xDB, "LJN"),
+    (0xDD, "Nippon Computer Systems"),
+    (0xDE, "Human Ent."),
+    (0xDF, "Altron"),
+    (0xE0, "Jaleco"),
+    (0xE1, "Towa Chiki"),
+    (0xE2, "Yutaka # Needs more info"),
+    (0xE3, "Varie"),
+    (0xE5, "Epoch"),
+    (0xE7, "Athena"),
+    (0xE8, "Asmik Ace Entertainment"),
+    (0xE9, "Natsume"),
+    (0xEA, "King Records"),
+    (0xEB, "Atlus"),
+    (0xEC, "Epic/Sony Records"),
+    (0xEE, "IGS"),
+    (0xF0, "A Wave"),
+    (0xF3, "Extreme Entertainment"),
+    (0xFF, "LJN"),
+];
+
+const DEFAULT_CARTRIDGE_TYPE: CartridgeType = CartridgeType {
+    mbc: MBCType::None,
+    ram: false,
+    battery: false,
+    timer: false,
+    rumble: false,
+    sensor: false,
+    pocket_camera: false,
+    bandai_tama5: false,
+};
+
+const CARTRIDGE_TYPE_LOOKUP: [(u8, CartridgeType); 28] = [
+    (0x00, DEFAULT_CARTRIDGE_TYPE),
+    (
+        0x01,
+        CartridgeType {
+            mbc: MBCType::MBC1,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x02,
+        CartridgeType {
+            mbc: MBCType::MBC1,
+            ram: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x03,
+        CartridgeType {
+            mbc: MBCType::MBC1,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x05,
+        CartridgeType {
+            mbc: MBCType::MBC2,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x06,
+        CartridgeType {
+            mbc: MBCType::MBC2,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x08,
+        CartridgeType {
+            ram: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x09,
+        CartridgeType {
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x0B,
+        CartridgeType {
+            mbc: MBCType::MMM01,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x0C,
+        CartridgeType {
+            mbc: MBCType::MMM01,
+            ram: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x0D,
+        CartridgeType {
+            mbc: MBCType::MMM01,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x0F,
+        CartridgeType {
+            mbc: MBCType::MBC3,
+            timer: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x10,
+        CartridgeType {
+            mbc: MBCType::MBC3,
+            timer: true,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x11,
+        CartridgeType {
+            mbc: MBCType::MBC3,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x12,
+        CartridgeType {
+            mbc: MBCType::MBC3,
+            ram: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x13,
+        CartridgeType {
+            mbc: MBCType::MBC3,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x19,
+        CartridgeType {
+            mbc: MBCType::MBC5,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x1A,
+        CartridgeType {
+            mbc: MBCType::MBC5,
+            ram: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x1B,
+        CartridgeType {
+            mbc: MBCType::MBC5,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x1C,
+        CartridgeType {
+            mbc: MBCType::MBC5,
+            rumble: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x1D,
+        CartridgeType {
+            mbc: MBCType::MBC5,
+            rumble: true,
+            ram: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x1E,
+        CartridgeType {
+            mbc: MBCType::MBC5,
+            rumble: true,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x20,
+        CartridgeType {
+            mbc: MBCType::MBC6,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0x22,
+        CartridgeType {
+            mbc: MBCType::MBC7,
+            sensor: true,
+            rumble: true,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0xFC,
+        CartridgeType {
+            pocket_camera: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0xFD,
+        CartridgeType {
+            bandai_tama5: true, // BANDAI TAMA5
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0xFE,
+        CartridgeType {
+            mbc: MBCType::HuC3, // HuC3
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+    (
+        0xFF,
+        CartridgeType {
+            mbc: MBCType::HuC1,
+            ram: true,
+            battery: true,
+            ..DEFAULT_CARTRIDGE_TYPE
+        },
+    ),
+];
+
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
     NoHeader { rom_size: usize },
@@ -49,7 +498,7 @@ pub enum SgbFlag {
     Ignore(u8),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MBCType {
     None,
     MBC1,
@@ -63,7 +512,7 @@ pub enum MBCType {
     HuC1,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CartridgeType {
     pub mbc: MBCType,
     pub ram: bool,
@@ -133,7 +582,7 @@ impl Header {
             check_global_checksum(rom, global_checksum)?;
         }
 
-        let header = Self {
+        Ok(Self {
             title,
             cgb_flag,
             licensee,
@@ -145,8 +594,7 @@ impl Header {
             rom_version,
             header_checksum,
             global_checksum,
-        };
-        Ok(header)
+        })
     }
 }
 
@@ -213,79 +661,16 @@ fn parse_cgb_flag(rom: &[u8]) -> CgbFlag {
 }
 
 fn parse_new_licensee_code(rom: &[u8]) -> Option<String> {
-    let code = str::from_utf8(
+    let key = str::from_utf8(
         &rom[NEW_LICENSEE_CODE_ADDR..NEW_LICENSEE_CODE_ADDR + NEW_LICENSEE_CODE_SIZE],
     )
     .ok()?;
 
-    let name = match code {
-        "01" => "Nintendo Research & Development 1",
-        "08" => "Capcom",
-        "13" => "EA (Electronic Arts)",
-        "18" => "Hudson Soft",
-        "19" => "B-AI",
-        "20" => "KSS",
-        "22" => "Planning Office WADA",
-        "24" => "PCM Complete",
-        "25" => "San-X",
-        "28" => "Kemco",
-        "29" => "SETA Corporation",
-        "30" => "Viacom",
-        "31" => "Nintendo",
-        "32" => "Bandai",
-        "33" => "Ocean Software/Acclaim Entertainment",
-        "34" => "Konami",
-        "35" => "HectorSoft",
-        "37" => "Taito",
-        "38" => "Hudson Soft",
-        "39" => "Banpresto",
-        "41" => "Ubi Soft1",
-        "42" => "Atlus",
-        "44" => "Malibu Interactive",
-        "46" => "Angel",
-        "47" => "Bullet-Proof Software2",
-        "49" => "Irem",
-        "50" => "Absolute",
-        "51" => "Acclaim Entertainment",
-        "52" => "Activision",
-        "53" => "Sammy USA Corporation",
-        "54" => "Konami",
-        "55" => "Hi Tech Expressions",
-        "56" => "LJN",
-        "57" => "Matchbox",
-        "58" => "Mattel",
-        "59" => "Milton Bradley Company",
-        "60" => "Titus Interactive",
-        "61" => "Virgin Games Ltd.3",
-        "64" => "Lucasfilm Games4",
-        "67" => "Ocean Software",
-        "69" => "EA (Electronic Arts)",
-        "70" => "Infogrames5",
-        "71" => "Interplay Entertainment",
-        "72" => "Broderbund",
-        "73" => "Sculptured Software6",
-        "75" => "The Sales Curve Limited7",
-        "78" => "THQ",
-        "79" => "Accolade8",
-        "80" => "Misawa Entertainment",
-        "83" => "LOZC G.",
-        "86" => "Tokuma Shoten",
-        "87" => "Tsukuda Original",
-        "91" => "Chunsoft Co.9",
-        "92" => "Video System",
-        "93" => "Ocean Software/Acclaim Entertainment",
-        "95" => "Varie",
-        "96" => "Yonezawa10/S'Pal",
-        "97" => "Kaneko",
-        "99" => "Pack-In-Video",
-        "9H" => "Bottom Up",
-        "A4" => "Konami (Yu-Gi-Oh!)",
-        "BL" => "MTO",
-        "DK" => "Kodansha",
-        _ => None?,
-    };
-
-    Some(String::from(name))
+    NEW_LICENSEE_CODE_LOOKUP
+        .binary_search_by_key(&key, |&(k, _)| k)
+        .ok()
+        .and_then(|i| NEW_LICENSEE_CODE_LOOKUP.get(i))
+        .map(|&(_, x)| String::from(x))
 }
 
 fn parse_sgb_flag(rom: &[u8]) -> SgbFlag {
@@ -297,114 +682,13 @@ fn parse_sgb_flag(rom: &[u8]) -> SgbFlag {
 }
 
 fn parse_cartridge_type(rom: &[u8]) -> Result<CartridgeType> {
-    let mut ct = CartridgeType {
-        mbc: MBCType::None,
-        ram: false,
-        battery: false,
-        timer: false,
-        rumble: false,
-        sensor: false,
-        pocket_camera: false,
-        bandai_tama5: false,
-    };
-
-    match rom[CARTRIDGE_TYPE_ADDR] {
-        0x00 => (),
-        0x01 => ct.mbc = MBCType::MBC1, // MBC1
-        0x02 => {
-            ct.mbc = MBCType::MBC1;
-            ct.ram = true
-        } // MBC1+RAM
-        0x03 => {
-            ct.mbc = MBCType::MBC1;
-            ct.ram = true;
-            ct.battery = true
-        } // MBC1+RAM+BATTERY
-        0x05 => ct.mbc = MBCType::MBC2, // MBC2
-        0x06 => {
-            ct.mbc = MBCType::MBC2;
-            ct.battery = true
-        } // MBC2+BATTERY
-        0x08 => ct.ram = true,          // ROM+RAM
-        0x09 => {
-            ct.ram = true;
-            ct.battery = true
-        } // ROM+RAM+BATTERY
-        0x0B => ct.mbc = MBCType::MMM01, // MMM01
-        0x0C => {
-            ct.mbc = MBCType::MMM01;
-            ct.ram = true
-        } // MMM01+RAM
-        0x0D => {
-            ct.mbc = MBCType::MMM01;
-            ct.ram = true;
-            ct.battery = true
-        } // MMM01+RAM+BATTERY
-        0x0F => {
-            ct.mbc = MBCType::MBC3;
-            ct.timer = true;
-            ct.battery = true
-        } // MBC3+TIMER+BATTERY
-        0x10 => {
-            ct.mbc = MBCType::MBC3;
-            ct.timer = true;
-            ct.ram = true;
-            ct.battery = true
-        } // MBC3+TIMER+RAM+BATTERY
-        0x11 => ct.mbc = MBCType::MBC3, // MBC3
-        0x12 => {
-            ct.mbc = MBCType::MBC3;
-            ct.ram = true
-        } // MBC3+RAM
-        0x13 => {
-            ct.mbc = MBCType::MBC3;
-            ct.ram = true;
-            ct.battery = true
-        } // MBC3+RAM+BATTERY
-        0x19 => ct.mbc = MBCType::MBC5, // MBC5
-        0x1A => {
-            ct.mbc = MBCType::MBC5;
-            ct.ram = true
-        } // MBC5+RAM
-        0x1B => {
-            ct.mbc = MBCType::MBC5;
-            ct.ram = true;
-            ct.battery = true
-        } // MBC5+RAM+BATTERY
-        0x1C => {
-            ct.mbc = MBCType::MBC5;
-            ct.rumble = true
-        } // MBC5+RUMBLE
-        0x1D => {
-            ct.mbc = MBCType::MBC5;
-            ct.rumble = true;
-            ct.ram = true
-        } // MBC5+RUMBLE+RAM
-        0x1E => {
-            ct.mbc = MBCType::MBC5;
-            ct.rumble = true;
-            ct.ram = true;
-            ct.battery = true
-        } // MBC5+RUMBLE+RAM+BATTERY
-        0x20 => ct.mbc = MBCType::MBC6, // MBC6
-        0x22 => {
-            ct.mbc = MBCType::MBC7;
-            ct.sensor = true;
-            ct.rumble = true;
-            ct.ram = true;
-            ct.battery = true
-        } // MBC7+SENSOR+RUMBLE+RAM+BATTERY
-        0xFC => ct.pocket_camera = true, // POCKET CAMERA
-        0xFD => ct.bandai_tama5 = true, // BANDAI TAMA5
-        0xFE => ct.mbc = MBCType::HuC3, // HuC3
-        0xFF => {
-            ct.mbc = MBCType::HuC1;
-            ct.ram = true;
-            ct.battery = true
-        } // HuC1+RAM+BATTERY
-        x => Err(ParseError::InvalidCartridgeType(x))?,
-    };
-    Ok(ct)
+    let key = rom[CARTRIDGE_TYPE_ADDR];
+    CARTRIDGE_TYPE_LOOKUP
+        .binary_search_by_key(&key, |&(k, _)| k)
+        .ok()
+        .and_then(|i| CARTRIDGE_TYPE_LOOKUP.get(i))
+        .map(|(_, ct)| ct.clone())
+        .ok_or(ParseError::InvalidCartridgeType(key))
 }
 
 fn parse_rom_size(rom: &[u8]) -> Result<usize> {
@@ -414,7 +698,7 @@ fn parse_rom_size(rom: &[u8]) -> Result<usize> {
         0x02 => 128 * 1024,
         0x03 => 256 * 1024,
         0x04 => 512 * 1024,
-        0x05 => 1 * 1024 * 1024,
+        0x05 => 1024 * 1024,
         0x06 => 2 * 1024 * 1024,
         0x07 => 4 * 1024 * 1024,
         0x08 => 8 * 1024 * 1024,
@@ -445,160 +729,16 @@ fn parse_destincation_code(rom: &[u8]) -> Result<DestinationCode> {
 }
 
 fn parse_old_licensee_code(rom: &[u8], new_code: Option<String>) -> Option<String> {
-    let code = rom[OLD_LICENSEE_CODE_ADDR];
-    if code == 33 {
+    let key = rom[OLD_LICENSEE_CODE_ADDR];
+    if key == 33 {
         return new_code;
     }
 
-    let name = match code {
-        0x01 => "Nintendo",
-        0x08 => "Capcom",
-        0x09 => "HOT-B",
-        0x0A => "Jaleco",
-        0x0B => "Coconuts Japan",
-        0x0C => "Elite Systems",
-        0x13 => "EA (Electronic Arts)",
-        0x18 => "Hudson Soft",
-        0x19 => "ITC Entertainment",
-        0x1A => "Yanoman",
-        0x1D => "Japan Clary",
-        0x1F => "Virgin Games Ltd.3",
-        0x24 => "PCM Complete",
-        0x25 => "San-X",
-        0x28 => "Kemco",
-        0x29 => "SETA Corporation",
-        0x30 => "Infogrames5",
-        0x31 => "Nintendo",
-        0x32 => "Bandai",
-        0x34 => "Konami",
-        0x35 => "HectorSoft",
-        0x38 => "Capcom",
-        0x39 => "Banpresto",
-        0x3C => "Entertainment Interactive (stub)",
-        0x3E => "Gremlin",
-        0x41 => "Ubi Soft1",
-        0x42 => "Atlus",
-        0x44 => "Malibu Interactive",
-        0x46 => "Angel",
-        0x47 => "Spectrum HoloByte",
-        0x49 => "Irem",
-        0x4A => "Virgin Games Ltd.3",
-        0x4D => "Malibu Interactive",
-        0x4F => "U.S. Gold",
-        0x50 => "Absolute",
-        0x51 => "Acclaim Entertainment",
-        0x52 => "Activision",
-        0x53 => "Sammy USA Corporation",
-        0x54 => "GameTek",
-        0x55 => "Park Place15",
-        0x56 => "LJN",
-        0x57 => "Matchbox",
-        0x59 => "Milton Bradley Company",
-        0x5A => "Mindscape",
-        0x5B => "Romstar",
-        0x5C => "Naxat Soft16",
-        0x5D => "Tradewest",
-        0x60 => "Titus Interactive",
-        0x61 => "Virgin Games Ltd.3",
-        0x67 => "Ocean Software",
-        0x69 => "EA (Electronic Arts)",
-        0x6E => "Elite Systems",
-        0x6F => "Electro Brain",
-        0x70 => "Infogrames5",
-        0x71 => "Interplay Entertainment",
-        0x72 => "Broderbund",
-        0x73 => "Sculptured Software6",
-        0x75 => "The Sales Curve Limited7",
-        0x78 => "THQ",
-        0x79 => "Accolade8",
-        0x7A => "Triffix Entertainment",
-        0x7C => "MicroProse",
-        0x7F => "Kemco",
-        0x80 => "Misawa Entertainment",
-        0x83 => "LOZC G.",
-        0x86 => "Tokuma Shoten",
-        0x8B => "Bullet-Proof Software2",
-        0x8C => "Vic Tokai Corp.17",
-        0x8E => "Ape Inc.18",
-        0x8F => "I’Max19",
-        0x91 => "Chunsoft Co.9",
-        0x92 => "Video System",
-        0x93 => "Tsubaraya Productions",
-        0x95 => "Varie",
-        0x96 => "Yonezawa10/S’Pal",
-        0x97 => "Kemco",
-        0x99 => "Arc",
-        0x9A => "Nihon Bussan",
-        0x9B => "Tecmo",
-        0x9C => "Imagineer",
-        0x9D => "Banpresto",
-        0x9F => "Nova",
-        0xA1 => "Hori Electric",
-        0xA2 => "Bandai",
-        0xA4 => "Konami",
-        0xA6 => "Kawada",
-        0xA7 => "Takara",
-        0xA9 => "Technos Japan",
-        0xAA => "Broderbund",
-        0xAC => "Toei Animation",
-        0xAD => "Toho",
-        0xAF => "Namco",
-        0xB0 => "Acclaim Entertainment",
-        0xB1 => "ASCII Corporation or Nexsoft",
-        0xB2 => "Bandai",
-        0xB4 => "Square Enix",
-        0xB6 => "HAL Laboratory",
-        0xB7 => "SNK",
-        0xB9 => "Pony Canyon",
-        0xBA => "Culture Brain",
-        0xBB => "Sunsoft",
-        0xBD => "Sony Imagesoft",
-        0xBF => "Sammy Corporation",
-        0xC0 => "Taito",
-        0xC2 => "Kemco",
-        0xC3 => "Square",
-        0xC4 => "Tokuma Shoten",
-        0xC5 => "Data East",
-        0xC6 => "Tonkin House",
-        0xC8 => "Koei",
-        0xC9 => "UFL",
-        0xCA => "Ultra Games",
-        0xCB => "VAP, Inc.",
-        0xCC => "Use Corporation",
-        0xCD => "Meldac",
-        0xCE => "Pony Canyon",
-        0xCF => "Angel",
-        0xD0 => "Taito",
-        0xD1 => "SOFEL (Software Engineering Lab)",
-        0xD2 => "Quest",
-        0xD3 => "Sigma Enterprises",
-        0xD4 => "ASK Kodansha Co.",
-        0xD6 => "Naxat Soft16",
-        0xD7 => "Copya System",
-        0xD9 => "Banpresto",
-        0xDA => "Tomy",
-        0xDB => "LJN",
-        0xDD => "Nippon Computer Systems",
-        0xDE => "Human Ent.",
-        0xDF => "Altron",
-        0xE0 => "Jaleco",
-        0xE1 => "Towa Chiki",
-        0xE2 => "Yutaka # Needs more info",
-        0xE3 => "Varie",
-        0xE5 => "Epoch",
-        0xE7 => "Athena",
-        0xE8 => "Asmik Ace Entertainment",
-        0xE9 => "Natsume",
-        0xEA => "King Records",
-        0xEB => "Atlus",
-        0xEC => "Epic/Sony Records",
-        0xEE => "IGS",
-        0xF0 => "A Wave",
-        0xF3 => "Extreme Entertainment",
-        0xFF => "LJN",
-        _ => None?,
-    };
-    Some(String::from(name))
+    OLD_LICENSEE_CODE_LOOKUP
+        .binary_search_by_key(&key, |&(k, _)| k)
+        .ok()
+        .and_then(|i| OLD_LICENSEE_CODE_LOOKUP.get(i))
+        .map(|&(_, x)| String::from(x))
 }
 
 fn parse_rom_version(rom: &[u8]) -> u8 {
@@ -611,8 +751,8 @@ fn parse_header_checksum(rom: &[u8]) -> u8 {
 
 fn check_header_checksum(rom: &[u8], expected: u8) -> Result<()> {
     let mut actual: u8 = 0;
-    for addr in 0x0134..=0x014C {
-        actual = actual.wrapping_sub(rom[addr]).wrapping_sub(1);
+    for &value in rom.iter().take(0x014C + 1).skip(0x0134) {
+        actual = actual.wrapping_sub(value).wrapping_sub(1);
     }
 
     if expected == actual {
