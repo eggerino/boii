@@ -1,3 +1,4 @@
+mod arithmetic8bit;
 mod interrupt;
 mod load;
 mod misc;

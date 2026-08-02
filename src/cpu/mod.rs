@@ -345,23 +345,23 @@ where
                 self.load_from_literal8_high_pointer_into_a()
             }
             Instruction::LoadFromCHighPointerIntoA => self.load_from_c_high_pointer_into_a(),
-            Instruction::IncrementRegister8(register8) => todo!(),
-            Instruction::DecrementRegister8(register8) => todo!(),
-            Instruction::AddToA(register8) => todo!(),
-            Instruction::AddLiteral8ToA => todo!(),
-            Instruction::AddToACarry(register8) => todo!(),
-            Instruction::AddLiteral8ToACarry => todo!(),
-            Instruction::SubtractFromA(register8) => todo!(),
-            Instruction::SubtractLiteral8FromA => todo!(),
-            Instruction::SubtractFromACarry(register8) => todo!(),
-            Instruction::SubtractLiteral8FromACarry => todo!(),
-            Instruction::CompareToA(register8) => todo!(),
-            Instruction::CompareLiteral8ToA => todo!(),
+            Instruction::IncrementRegister8(op) => self.increment_register8(op),
+            Instruction::DecrementRegister8(op) => self.decrement_register8(op),
+            Instruction::AddToA(op) => self.add_to_a(op),
+            Instruction::AddLiteral8ToA => self.add_literal8_to_a(),
+            Instruction::AddToACarry(op) => self.add_to_a_carry(op),
+            Instruction::AddLiteral8ToACarry => self.add_literal8_to_a_carry(),
+            Instruction::SubtractFromA(op) => self.subtract_from_a(op),
+            Instruction::SubtractLiteral8FromA => self.subtract_literal8_from_a(),
+            Instruction::SubtractFromACarry(op) => self.subtract_from_a_carry(op),
+            Instruction::SubtractLiteral8FromACarry => self.subtract_literal8_from_a_carry(),
+            Instruction::CompareToA(op) => self.compare_to_a(op),
+            Instruction::CompareLiteral8ToA => self.compare_literal8_to_a(),
             Instruction::IncrementRegister16(register16) => todo!(),
             Instruction::DecrementRegister16(register16) => todo!(),
             Instruction::AddRegister16ToHL(register16) => todo!(),
             Instruction::ComplementA => todo!(),
-            Instruction::AndWithA(register8) => todo!(),
+            Instruction::AndWithA(op) => todo!(),
             Instruction::AndLiteral8WithA => todo!(),
             Instruction::XorWithA(register8) => todo!(),
             Instruction::XorLiteral8WithA => todo!(),
@@ -537,6 +537,154 @@ where
         let value = self.bus.read(address)?;
         self.reg.set_a(value);
         Ok(2)
+    }
+
+    // 8 Bit arithmetic
+    fn increment_register8(&mut self, op: Register8) -> Result<usize> {
+        let old_value = self.get_register8(op)?;
+        let value = old_value.wrapping_add(1);
+        self.set_register8(op, value)?;
+
+        self.reg.set_zero_flag(value == 0);
+        self.reg.set_sub_flag(false);
+        self.reg
+            .set_half_carry_flag(Self::is_overflow_bit3(old_value as i32, 1));
+
+        match op {
+            Register8::HLAsPointer => Ok(3),
+            _ => Ok(1),
+        }
+    }
+
+    fn decrement_register8(&mut self, op: Register8) -> Result<usize> {
+        let old_value = self.get_register8(op)?;
+        let value = old_value.wrapping_sub(1);
+        self.set_register8(op, value)?;
+
+        self.reg.set_zero_flag(value == 0);
+        self.reg.set_sub_flag(true);
+        self.reg
+            .set_half_carry_flag(Self::is_borroww_bit4(old_value as i32, 1));
+
+        match op {
+            Register8::HLAsPointer => Ok(3),
+            _ => Ok(1),
+        }
+    }
+
+    fn add_to_a(&mut self, op: Register8) -> Result<usize> {
+        let value = self.get_register8(op)?;
+        self.do_add_a(value, false);
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn add_literal8_to_a(&mut self) -> Result<usize> {
+        let operand = self.fetch_u8()?;
+        self.do_add_a(operand, false);
+        Ok(2)
+    }
+
+    fn add_to_a_carry(&mut self, op: Register8) -> Result<usize> {
+        let operand = self.get_register8(op)?;
+        self.do_add_a(operand, self.reg.carry_flag());
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn add_literal8_to_a_carry(&mut self) -> Result<usize> {
+        let operand = self.fetch_u8()?;
+        self.do_add_a(operand, self.reg.carry_flag());
+        Ok(2)
+    }
+
+    fn do_add_a(&mut self, increment: u8, carry: bool) {
+        let operand = if carry { increment + 1 } else { increment };
+
+        let old_value = self.reg.a();
+        let new_value = old_value.wrapping_add(operand);
+
+        self.reg.set_a(new_value);
+        self.reg.set_zero_flag(new_value == 0);
+        self.reg.set_sub_flag(false);
+        self.reg
+            .set_half_carry_flag(Self::is_overflow_bit3(old_value as i32, operand as i32));
+        self.reg
+            .set_carry_flag(Self::is_overflow_bit7(old_value as i32, operand as i32));
+    }
+
+    fn subtract_from_a(&mut self, op: Register8) -> Result<usize> {
+        let operand = self.get_register8(op)?;
+        self.do_subtract_a(operand, false);
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn subtract_literal8_from_a(&mut self) -> Result<usize> {
+        let operand = self.fetch_u8()?;
+        self.do_subtract_a(operand, false);
+        Ok(2)
+    }
+
+    fn subtract_from_a_carry(&mut self, op: Register8) -> Result<usize> {
+        let operand = self.get_register8(op)?;
+        self.do_subtract_a(operand, self.reg.carry_flag());
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn subtract_literal8_from_a_carry(&mut self) -> Result<usize> {
+        let operand = self.fetch_u8()?;
+        self.do_subtract_a(operand, self.reg.carry_flag());
+        Ok(2)
+    }
+
+    fn do_subtract_a(&mut self, dec: u8, carry: bool) {
+        let op = if carry { dec + 1 } else { dec };
+
+        let old_value = self.reg.a();
+        let new_value = old_value.wrapping_sub(op);
+
+        self.reg.set_a(new_value);
+        self.reg.set_zero_flag(new_value == 0);
+        self.reg.set_sub_flag(true);
+        self.reg
+            .set_half_carry_flag(Self::is_borroww_bit4(old_value as i32, op as i32));
+        self.reg.set_carry_flag(op > old_value);
+    }
+
+    fn compare_to_a(&mut self, op: Register8) -> Result<usize> {
+        let value = self.get_register8(op)?;
+        self.do_compare_a(value);
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn compare_literal8_to_a(&mut self) -> Result<usize> {
+        let op = self.fetch_u8()?;
+        self.do_compare_a(op);
+        Ok(2)
+    }
+
+    fn do_compare_a(&mut self, op: u8) {
+        let a = self.reg.a();
+        let check_value = a.wrapping_sub(op);
+
+        self.reg.set_zero_flag(check_value == 0);
+        self.reg.set_sub_flag(true);
+        self.reg
+            .set_half_carry_flag(Self::is_borroww_bit4(a as i32, op as i32));
+        self.reg.set_carry_flag(op > a);
     }
 
     fn do_call(&mut self, address: u16) -> Result<()> {
