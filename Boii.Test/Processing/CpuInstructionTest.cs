@@ -7,30 +7,6 @@ public class CpuInstructionTest
 {
     // Misc
 
-    [Theory]
-    // Subtraction cases
-    [InlineData(0x6600 | 0b0100_0000, 0x6600 | 0b0100_0000)]
-    [InlineData(0x6600 | 0b0110_0000, 0x6000 | 0b0100_0000)]
-    [InlineData(0x6600 | 0b0101_0000, 0x0600 | 0b0100_0000)]
-    [InlineData(0x6600 | 0b0111_0000, 0x0000 | 0b1100_0000)]
-    // Addition cases
-    [InlineData(0x0000 | 0b0000_0000, 0x0000 | 0b1000_0000)]
-    [InlineData(0x0000 | 0b0010_0000, 0x0600 | 0b0000_0000)]
-    [InlineData(0x0A00 | 0b0000_0000, 0x1000 | 0b0000_0000)]
-    [InlineData(0x0000 | 0b0001_0000, 0x6000 | 0b0001_0000)]
-    [InlineData(0xA000 | 0b0000_0000, 0x0000 | 0b1001_0000)]
-    [InlineData(0x0000 | 0b0011_0000, 0x6600 | 0b0001_0000)]
-    public void DecimalAdjustAccumulator(ushort initialAF, ushort expectedAF)
-    {
-        var bus = Bus.From([
-            0b0010_0111         // daa
-        ]);
-        var cpu = Cpu.CreateWithRegisterState(bus, new(initialAF, 0, 0, 0, 0, 0x0100));
-
-        cpu.Step();
-
-        AssertCpu(1, new(expectedAF, 0, 0, 0, 0, 0x0101), cpu);
-    }
 
     // Interrupt
     [Fact]

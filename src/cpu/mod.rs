@@ -1,3 +1,7 @@
+mod imd;
+mod instr;
+mod registers;
+
 use crate::{
     bits::{Bits, combine_bytes, high_byte, low_byte},
     cpu::{
@@ -7,10 +11,6 @@ use crate::{
     },
     memory::{self, Read, Write},
 };
-
-mod imd;
-pub mod instr;
-mod registers;
 
 const INTERRUPT_FLAG_ADDR: u16 = 0xFF0F;
 const INTERRUPT_ENABLE_ADDR: u16 = 0xFFFF;
@@ -200,14 +200,14 @@ where
 
     fn get_register8(&self, register: Register8) -> Result<u8> {
         match register {
-            Register8::B => Ok(self.reg.get_b()),
-            Register8::C => Ok(self.reg.get_c()),
-            Register8::D => Ok(self.reg.get_d()),
-            Register8::E => Ok(self.reg.get_e()),
-            Register8::H => Ok(self.reg.get_h()),
-            Register8::L => Ok(self.reg.get_l()),
+            Register8::B => Ok(self.reg.b()),
+            Register8::C => Ok(self.reg.c()),
+            Register8::D => Ok(self.reg.d()),
+            Register8::E => Ok(self.reg.e()),
+            Register8::H => Ok(self.reg.h()),
+            Register8::L => Ok(self.reg.l()),
             Register8::HLAsPointer => self.bus.read(self.reg.hl).map_err(|e| e.into()),
-            Register8::A => Ok(self.reg.get_a()),
+            Register8::A => Ok(self.reg.a()),
         }
     }
 
@@ -294,10 +294,10 @@ where
 
     fn get_condition(&self, condition: Condition) -> bool {
         match condition {
-            Condition::NotZero => !self.reg.get_zero_flag(),
-            Condition::Zero => self.reg.get_zero_flag(),
-            Condition::NotCarry => !self.reg.get_carry_flag(),
-            Condition::Carry => self.reg.get_carry_flag(),
+            Condition::NotZero => !self.reg.zero_flag(),
+            Condition::Zero => self.reg.zero_flag(),
+            Condition::NotCarry => !self.reg.carry_flag(),
+            Condition::Carry => self.reg.carry_flag(),
         }
     }
 
@@ -324,9 +324,9 @@ where
     // Instruction execution
     fn execute(&mut self, inst: Instruction) -> Result<usize> {
         match inst {
-            Instruction::Nop => Self::nop(),
-            Instruction::Stop => todo!(),
-            Instruction::DecimalAdjustA => todo!(),
+            Instruction::Nop => Ok(Self::nop()),
+            Instruction::Stop => todo!("Stop is currently not supported"),
+            Instruction::DecimalAdjustA => Ok(self.decimal_adjust_a()),
             Instruction::Halt => todo!(),
             Instruction::EnableInterrupt => todo!(),
             Instruction::DisableInterrupt => todo!(),
@@ -392,8 +392,38 @@ where
     }
 
     // Misc
-    fn nop() -> Result<usize> {
-        Ok(1)
+    fn nop() -> usize {
+        1
+    }
+
+    fn decimal_adjust_a(&mut self) -> usize {
+        let mut a = self.reg.a();
+        let mut adjustment = 0;
+
+        if self.reg.sub_flag() {
+            if self.reg.half_carry_flag() {
+                adjustment += 0x06;
+            }
+            if self.reg.carry_flag() {
+                adjustment += 0x60;
+            }
+            a = a.wrapping_sub(adjustment);
+        } else {
+            if self.reg.half_carry_flag() || (a & 0x0F) > 0x09 {
+                adjustment += 0x06;
+            }
+            if self.reg.carry_flag() || a > 0x99 {
+                adjustment += 0x60;
+                self.reg.set_carry_flag(true);
+            }
+            a = a.wrapping_add(adjustment);
+        }
+
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(a == 0);
+        self.reg.set_half_carry_flag(false);
+
+        1
     }
 
     fn do_call(&mut self, address: u16) -> Result<()> {
@@ -525,6 +555,37 @@ mod tests {
             step(&mut cpu, 1);
 
             assert_cpu(1, state(0, 0, 0, 0, 0, 0x0101, false, false), &cpu);
+        }
+
+        #[test]
+        fn decimal_adjust_accumulator() {
+            let data = [
+                // Subtraction cases
+                (0x6600 | 0b0100_0000, 0x6600 | 0b0100_0000),
+                (0x6600 | 0b0110_0000, 0x6000 | 0b0100_0000),
+                (0x6600 | 0b0101_0000, 0x0600 | 0b0101_0000),
+                (0x6600 | 0b0111_0000, 0x0000 | 0b1101_0000),
+                // Addition cases
+                (0x0000 | 0b0000_0000, 0x0000 | 0b1000_0000),
+                (0x0000 | 0b0010_0000, 0x0600 | 0b0000_0000),
+                (0x0A00 | 0b0000_0000, 0x1000 | 0b0000_0000),
+                (0x0000 | 0b0001_0000, 0x6000 | 0b0001_0000),
+                (0xA000 | 0b0000_0000, 0x0000 | 0b1001_0000),
+                (0x0000 | 0b0011_0000, 0x6600 | 0b0001_0000),
+            ];
+
+            for (initial_af, expected_af) in data {
+                let bus = prog(&[0b0010_0111]); // daa
+                let mut cpu = cpu(bus, state(initial_af, 0, 0, 0, 0, 0x0100, false, false));
+
+                cpu.step().unwrap();
+
+                assert_cpu(
+                    1,
+                    state(expected_af, 0, 0, 0, 0, 0x0101, false, false),
+                    &cpu,
+                );
+            }
         }
     }
 }

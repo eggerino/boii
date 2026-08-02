@@ -9,40 +9,6 @@ namespace Boii.Processing;
 
 public class Cpu
 {
-
-    private ulong Stop(Instruction.Stop _) => throw new NotImplementedException("[TODO] Stop is currently not supported");
-
-    private ulong DecimalAdjustA(Instruction.DecimalAdjustA _)
-    {
-        var a = _registers.A;
-        var carry = false;
-        byte adjustment = 0;
-
-        if (_registers.Subtraction)
-        {
-            if (_registers.HalfCarry) adjustment += 0x06;
-            if (_registers.Carry) adjustment += 0x60;
-            a -= adjustment;
-        }
-        else
-        {
-            if (_registers.HalfCarry || (a & 0x0F) > 0x09) adjustment += 0x06;
-            if (_registers.Carry || a > 0x99)
-            {
-                adjustment += 0x60;
-                carry = true;
-            }
-            a += adjustment;
-        }
-
-        _registers.A = a;
-        _registers.Zero = a == 0;
-        _registers.HalfCarry = false;
-        _registers.Carry = carry;
-
-        return 1;
-    }
-
     // Interrupt
     private ulong Halt(Instruction.Halt _)
     {
