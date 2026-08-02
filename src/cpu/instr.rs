@@ -42,6 +42,7 @@ impl From<U3> for u8 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Register8 {
     B,
     C,
