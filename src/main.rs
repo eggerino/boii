@@ -7,6 +7,14 @@ use boii::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
+
+
+
+    let err = boii::memory::Error::SegFault { address: 0x0100 };
+    println!("{}", err);
+
+
+
     let rom = [0; 10];
     let rom_parse_config = ParseConfig::default();
 

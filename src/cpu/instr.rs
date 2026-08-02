@@ -216,7 +216,7 @@ pub enum Instruction {
     // 16 Bit instructions
     Prefixed,
 
-    Invalid,
+    Invalid(u8),
 }
 
 impl Instruction {
@@ -311,17 +311,17 @@ impl Instruction {
             [I, I, O, O, I, O, I, I] => Self::Prefixed,
 
             // Invalid opcodes
-            [I, I, O, I, O, O, I, I] => Self::Invalid,
-            [I, I, I, O, O, O, I, I] => Self::Invalid,
-            [I, I, I, O, O, I, O, O] => Self::Invalid,
-            [I, I, I, I, O, I, O, O] => Self::Invalid,
-            [I, I, O, I, I, O, I, I] => Self::Invalid,
-            [I, I, I, O, I, O, I, I] => Self::Invalid,
-            [I, I, I, O, I, I, O, O] => Self::Invalid,
-            [I, I, I, I, I, I, O, O] => Self::Invalid,
-            [I, I, O, I, I, I, O, I] => Self::Invalid,
-            [I, I, I, O, I, I, O, I] => Self::Invalid,
-            [I, I, I, I, I, I, O, I] => Self::Invalid,
+            [I, I, O, I, O, O, I, I] => Self::Invalid(opcode),
+            [I, I, I, O, O, O, I, I] => Self::Invalid(opcode),
+            [I, I, I, O, O, I, O, O] => Self::Invalid(opcode),
+            [I, I, I, I, O, I, O, O] => Self::Invalid(opcode),
+            [I, I, O, I, I, O, I, I] => Self::Invalid(opcode),
+            [I, I, I, O, I, O, I, I] => Self::Invalid(opcode),
+            [I, I, I, O, I, I, O, O] => Self::Invalid(opcode),
+            [I, I, I, I, I, I, O, O] => Self::Invalid(opcode),
+            [I, I, O, I, I, I, O, I] => Self::Invalid(opcode),
+            [I, I, I, O, I, I, O, I] => Self::Invalid(opcode),
+            [I, I, I, I, I, I, O, I] => Self::Invalid(opcode),
         }
     }
 }

@@ -1,4 +1,5 @@
 use crate::{
+    bits::{Bits, combine_bytes, high_byte, low_byte},
     cpu::{
         imd::InterruptMasterDispatcher,
         instr::{Condition, Instruction, Register8, Register16, Register16Memory, Register16Stack},
@@ -14,43 +15,36 @@ mod registers;
 const INTERRUPT_FLAG_ADDR: u16 = 0xFF0F;
 const INTERRUPT_ENABLE_ADDR: u16 = 0xFFFF;
 
+#[derive(Debug, PartialEq)]
 pub enum Error {
-    InvalidInstruction,
-    Memory(memory::Error),
+    InvalidInstruction { opcode: u8 },
+    SegFault { address: u16 },
 }
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::InvalidInstruction { opcode } => write!(
+                f,
+                "The invalid opcode {:#x} was tried to be executed.",
+                opcode
+            ),
+            Error::SegFault { address } => memory::Error::SegFault { address: *address }.fmt(f),
+        }
+    }
+}
+
+impl core::error::Error for Error {}
 
 impl From<memory::Error> for Error {
     fn from(value: memory::Error) -> Self {
-        Self::Memory(value)
+        match value {
+            memory::Error::SegFault { address } => Self::SegFault { address },
+        }
     }
 }
 
 type Result<T> = core::result::Result<T, Error>;
-
-#[inline]
-pub fn bit(value: u8, idx: u8) -> bool {
-    value & (1 << idx) > 0
-}
-
-#[inline]
-pub fn clear_bit(value: u8, idx: u8) -> u8 {
-    value & !(1 << idx)
-}
-
-#[inline]
-pub fn high_byte(value: u16) -> u8 {
-    (value >> 8) as u8
-}
-
-#[inline]
-pub fn low_byte(value: u16) -> u8 {
-    value as u8
-}
-
-#[inline]
-pub fn to_u16(high: u8, low: u8) -> u16 {
-    ((high as u16) << 8) | (low as u16)
-}
 
 pub struct Cpu<T>
 where
@@ -150,7 +144,7 @@ where
     fn execute_interrupt(&mut self, pending: u8) -> Result<()> {
         // Get the interrupt with the highest priority
         let idx = (0..5)
-            .map(|i| (i, bit(pending, i)))
+            .map(|i| (i, pending.bit(i)))
             .filter(|&(_, x)| x)
             .map(|(x, _)| x)
             .next();
@@ -173,10 +167,10 @@ where
         Ok(())
     }
 
-    fn ack_interrupt(&mut self, idx: u8) -> Result<()> {
+    fn ack_interrupt(&mut self, idx: i32) -> Result<()> {
         self.bus
             .read(INTERRUPT_FLAG_ADDR)
-            .map(|f| clear_bit(f, idx))
+            .map(|f| f.clear_bit(idx))
             .and_then(|f| self.bus.write(INTERRUPT_FLAG_ADDR, f))
             .map_err(|x| x.into())
     }
@@ -201,7 +195,7 @@ where
 
     fn fetch_u16(&mut self) -> Result<u16> {
         self.fetch_u8()
-            .and_then(|l| self.fetch_u8().map(|h| to_u16(h, l)))
+            .and_then(|l| self.fetch_u8().map(|h| combine_bytes(h, l)))
     }
 
     fn get_register8(&self, register: Register8) -> Result<u8> {
@@ -393,7 +387,7 @@ where
             Instruction::LoadFromStackPointerPlusSignedLiteral8IntoHL => todo!(),
             Instruction::LoadFromHLIntoStackPointer => todo!(),
             Instruction::Prefixed => todo!(),
-            Instruction::Invalid => Err(Error::InvalidInstruction),
+            Instruction::Invalid(opcode) => Err(Error::InvalidInstruction { opcode }),
         }
     }
 

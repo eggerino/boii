@@ -9,7 +9,7 @@ use crate::{
     memory::{self, Read, Write},
 };
 
-pub use header::{ParseConfig, ParseError};
+pub use header::ParseConfig;
 
 #[derive(Debug, PartialEq)]
 pub enum LoadError {
@@ -20,15 +20,57 @@ pub enum LoadError {
     MismatchingRamSizes { expected: usize, actual: usize },
 }
 
+impl core::fmt::Display for LoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LoadError::SensorCartridge => write!(
+                f,
+                "The cartridge has a sensor. This is not supported in emulation."
+            ),
+            LoadError::CameraCartridge => write!(
+                f,
+                "The cartridge has a camera. This is not supported in emulation."
+            ),
+            LoadError::BandaiTama5Cartridge => write!(
+                f,
+                "The cartridge has a tama5. This is not supported in emulation."
+            ),
+            LoadError::MismatchingRomSizes { expected, actual } => write!(
+                f,
+                "The rom has a size of {} but the header specifies a size of {}.",
+                actual, expected
+            ),
+            LoadError::MismatchingRamSizes { expected, actual } => write!(
+                f,
+                "The ram has a size of {} but the header specifies a size of {}.",
+                actual, expected
+            ),
+        }
+    }
+}
+
+impl core::error::Error for LoadError {}
+
 #[derive(Debug, PartialEq)]
 pub enum Error {
-    ParseError(ParseError),
+    Header(header::Error),
     LoadError(LoadError),
 }
 
-impl From<ParseError> for Error {
-    fn from(value: ParseError) -> Self {
-        Self::ParseError(value)
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Header(e) => e.fmt(f),
+            Error::LoadError(e) => e.fmt(f),
+        }
+    }
+}
+
+impl core::error::Error for Error {}
+
+impl From<header::Error> for Error {
+    fn from(value: header::Error) -> Self {
+        Self::Header(value)
     }
 }
 

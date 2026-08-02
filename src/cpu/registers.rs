@@ -1,46 +1,9 @@
-const LOW_BYTE_MASK: u16 = 0x00FF;
-const HIGH_BYTE_MASK: u16 = 0xFF00;
+use crate::bits::{Bits, high_byte, low_byte, set_high_byte, set_low_byte};
 
-const ZERO_FLAG_MASK: u16 = 0b0000_0000_1000_0000;
-const SUB_FLAG_MASK: u16 = 0b0000_0000_0100_0000;
-const HALF_CARRY_FLAG_MASK: u16 = 0b0000_0000_0010_0000;
-const CARRY_FLAG_MASK: u16 = 0b0000_0000_0001_0000;
-
-#[inline]
-fn get_low_byte(x: u16) -> u8 {
-    x as u8
-}
-
-#[inline]
-fn get_high_byte(x: u16) -> u8 {
-    (x >> 8) as u8
-}
-
-#[inline]
-fn set_low_byte(x: u16, value: u8) -> u16 {
-    (x & HIGH_BYTE_MASK) | (value as u16)
-}
-
-#[inline]
-fn set_high_byte(x: u16, value: u8) -> u16 {
-    let value = value as u16;
-    (x & LOW_BYTE_MASK) | (value << 8)
-}
-
-#[inline]
-fn get_bit(x: u16, mask: u16) -> bool {
-    (x & mask) > 0
-}
-
-#[inline]
-fn set_bit(x: u16, mask: u16) -> u16 {
-    x | mask
-}
-
-#[inline]
-fn clear_bit(x: u16, mask: u16) -> u16 {
-    x & (!mask)
-}
+const ZERO_FLAG_IDX: i32 = 7;
+const SUB_FLAG_IDX: i32 = 6;
+const HALF_CARRY_FLAG_IDX: i32 = 5;
+const CARRY_FLAG_IDX: i32 = 4;
 
 pub struct Registers {
     pub af: u16,
@@ -67,7 +30,7 @@ impl Default for Registers {
 impl Registers {
     #[inline]
     pub fn get_a(&self) -> u8 {
-        get_high_byte(self.af)
+        high_byte(self.af)
     }
 
     #[inline]
@@ -77,67 +40,67 @@ impl Registers {
 
     #[inline]
     pub fn get_zero_flag(&self) -> bool {
-        get_bit(self.af, ZERO_FLAG_MASK)
+        self.af.bit(ZERO_FLAG_IDX)
     }
 
     #[inline]
     pub fn set_zero_flag(&mut self) {
-        self.af = set_bit(self.af, ZERO_FLAG_MASK);
+        self.af = self.af.set_bit(ZERO_FLAG_IDX);
     }
 
     #[inline]
     pub fn clear_zero_flag(&mut self) {
-        self.af = clear_bit(self.af, ZERO_FLAG_MASK);
+        self.af = self.af.clear_bit(ZERO_FLAG_IDX);
     }
 
     #[inline]
     pub fn get_sub_flag(&self) -> bool {
-        get_bit(self.af, SUB_FLAG_MASK)
+        self.af.bit(SUB_FLAG_IDX)
     }
 
     #[inline]
     pub fn set_sub_flag(&mut self) {
-        self.af = set_bit(self.af, SUB_FLAG_MASK);
+        self.af = self.af.set_bit(SUB_FLAG_IDX);
     }
 
     #[inline]
     pub fn clear_sub_flag(&mut self) {
-        self.af = clear_bit(self.af, SUB_FLAG_MASK);
+        self.af = self.af.clear_bit(SUB_FLAG_IDX);
     }
 
     #[inline]
     pub fn get_half_carry_flag(&self) -> bool {
-        get_bit(self.af, HALF_CARRY_FLAG_MASK)
+        self.af.bit(HALF_CARRY_FLAG_IDX)
     }
 
     #[inline]
     pub fn set_half_carry_flag(&mut self) {
-        self.af = set_bit(self.af, HALF_CARRY_FLAG_MASK);
+        self.af = self.af.set_bit(HALF_CARRY_FLAG_IDX);
     }
 
     #[inline]
     pub fn clear_half_carry_flag(&mut self) {
-        self.af = clear_bit(self.af, HALF_CARRY_FLAG_MASK);
+        self.af = self.af.clear_bit(HALF_CARRY_FLAG_IDX);
     }
 
     #[inline]
     pub fn get_carry_flag(&self) -> bool {
-        get_bit(self.af, CARRY_FLAG_MASK)
+        self.af.bit(CARRY_FLAG_IDX)
     }
 
     #[inline]
     pub fn set_carry_flag(&mut self) {
-        self.af = set_bit(self.af, CARRY_FLAG_MASK);
+        self.af = self.af.set_bit(CARRY_FLAG_IDX);
     }
 
     #[inline]
     pub fn clear_carry_flag(&mut self) {
-        self.af = clear_bit(self.af, CARRY_FLAG_MASK);
+        self.af = self.af.clear_bit(CARRY_FLAG_IDX);
     }
 
     #[inline]
     pub fn get_b(&self) -> u8 {
-        get_high_byte(self.bc)
+        high_byte(self.bc)
     }
 
     #[inline]
@@ -147,7 +110,7 @@ impl Registers {
 
     #[inline]
     pub fn get_c(&self) -> u8 {
-        get_low_byte(self.bc)
+        low_byte(self.bc)
     }
 
     #[inline]
@@ -157,7 +120,7 @@ impl Registers {
 
     #[inline]
     pub fn get_d(&self) -> u8 {
-        get_high_byte(self.de)
+        high_byte(self.de)
     }
 
     #[inline]
@@ -167,7 +130,7 @@ impl Registers {
 
     #[inline]
     pub fn get_e(&self) -> u8 {
-        get_low_byte(self.de)
+        low_byte(self.de)
     }
 
     #[inline]
@@ -177,7 +140,7 @@ impl Registers {
 
     #[inline]
     pub fn get_h(&self) -> u8 {
-        get_high_byte(self.hl)
+        high_byte(self.hl)
     }
 
     #[inline]
@@ -187,7 +150,7 @@ impl Registers {
 
     #[inline]
     pub fn get_l(&self) -> u8 {
-        get_low_byte(self.hl)
+        low_byte(self.hl)
     }
 
     #[inline]

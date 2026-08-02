@@ -3,6 +3,20 @@ pub enum Error {
     SegFault { address: u16 },
 }
 
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::SegFault { address } => write!(
+                f,
+                "Segmentation fault. Memory at {:#x} was tried to be accessed.",
+                address
+            ),
+        }
+    }
+}
+
+impl core::error::Error for Error {}
+
 type Result<T> = core::result::Result<T, Error>;
 
 pub trait Read {
