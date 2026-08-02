@@ -327,9 +327,9 @@ where
             Instruction::Nop => Ok(Self::nop()),
             Instruction::Stop => todo!("Stop is currently not supported"),
             Instruction::DecimalAdjustA => Ok(self.decimal_adjust_a()),
-            Instruction::Halt => todo!(),
-            Instruction::EnableInterrupt => todo!(),
-            Instruction::DisableInterrupt => todo!(),
+            Instruction::Halt => self.halt(),
+            Instruction::EnableInterrupt => Ok(self.enable_interrupt()),
+            Instruction::DisableInterrupt => Ok(self.disable_interrupt()),
             Instruction::LoadLiteral8(register8) => todo!(),
             Instruction::LoadRegister8 { src, dest } => todo!(),
             Instruction::LoadLiteral16(register16) => todo!(),
@@ -423,6 +423,40 @@ where
         self.reg.set_zero_flag(a == 0);
         self.reg.set_half_carry_flag(false);
 
+        1
+    }
+
+    // Interrupt
+    fn halt(&mut self) -> Result<usize> {
+        self.halted = true;
+
+        // Halt bug
+        if !self.imd.value() && self.pending_interrupts()? != 0 {
+            // Halt immediatly exits on the bugged case
+            self.halted = false;
+
+            let prev_opcode = self.bus.read(self.reg.prog_counter - 2)?;
+            let next_opcode = self.bus.read(self.reg.prog_counter)?;
+
+            if matches!(Instruction::from(prev_opcode), Instruction::EnableInterrupt) {
+                // Interrupt will get fired and must return to the halt itself
+                self.reg.prog_counter -= 1;
+            } else {
+                // Regular dplication bug -> cpu immediatly wakes up and next byte gets executed twice
+                self.buffered_opcode = Some(next_opcode);
+            }
+        }
+
+        Ok(1)
+    }
+
+    fn enable_interrupt(&mut self) -> usize {
+        self.imd.enque(true, 1); // Delay for one step
+        1
+    }
+
+    fn disable_interrupt(&mut self) -> usize {
+        self.imd.enque(false, 0);
         1
     }
 
@@ -586,6 +620,87 @@ mod tests {
                     &cpu,
                 );
             }
+        }
+    }
+
+    mod interrupt {
+        use super::*;
+
+        #[test]
+        fn halt() {
+            let mut bus = prog(&[0b111_0110]); // halt
+            ensure_size(&mut bus, 0x1_0000);
+            let mut cpu = Cpu::new(bus);
+
+            step(&mut cpu, 2);
+
+            assert_cpu(2, state(0, 0, 0, 0, 0, 0x0101, true, false), &cpu);
+        }
+
+        #[test]
+        fn enable_interrupt() {
+            let bus = prog(&[
+                0b1111_1011, // ei
+                0,           // nop
+            ]);
+            let mut cpu = Cpu::new(bus);
+
+            cpu.step().unwrap();
+            assert_cpu(1, state(0, 0, 0, 0, 0, 0x0101, false, false), &cpu);
+
+            cpu.step().unwrap();
+            assert_cpu(2, state(0, 0, 0, 0, 0, 0x0102, false, true), &cpu);
+        }
+
+        #[test]
+        fn disable_interrupt() {
+            let mut bus = prog(&[
+                0b1111_0011, // di
+            ]);
+            ensure_size(&mut bus, 0x1_0000);
+            let mut cpu = Cpu::new(bus);
+
+            cpu.step().unwrap();
+            assert_cpu(1, state(0, 0, 0, 0, 0, 0x0101, false, false), &cpu);
+        }
+
+        #[test]
+        fn enable_and_disable_interrupt() {
+            let mut bus = prog(&[
+                0b1111_1011, // ei
+                0b1111_0011, // di
+                0,           // nop
+                0,           // nop
+                0b1111_1011, // ei
+                0,           // nop
+                0,           // nop
+                0b1111_0011, // di
+                0,           // nop
+                0,           // nop
+            ]);
+            ensure_size(&mut bus, 0x1_0000);
+            let mut cpu = Cpu::new(bus);
+
+            cpu.step().unwrap();
+            assert_cpu(1, state(0, 0, 0, 0, 0, 0x0101, false, false), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(2, state(0, 0, 0, 0, 0, 0x0102, false, false), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(3, state(0, 0, 0, 0, 0, 0x0103, false, false), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(4, state(0, 0, 0, 0, 0, 0x0104, false, false), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(5, state(0, 0, 0, 0, 0, 0x0105, false, false), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(6, state(0, 0, 0, 0, 0, 0x0106, false, true), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(7, state(0, 0, 0, 0, 0, 0x0107, false, true), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(8, state(0, 0, 0, 0, 0, 0x0108, false, false), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(9, state(0, 0, 0, 0, 0, 0x0109, false, false), &cpu);
+            cpu.step().unwrap();
+            assert_cpu(10, state(0, 0, 0, 0, 0, 0x010A, false, false), &cpu);
         }
     }
 }

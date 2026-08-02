@@ -9,47 +9,6 @@ namespace Boii.Processing;
 
 public class Cpu
 {
-    // Interrupt
-    private ulong Halt(Instruction.Halt _)
-    {
-        _halted = true;
-
-        // Halt bug
-        if (!_interruptMaster.Value && GetPendingInterrupts() != 0)
-        {
-            // Halt immediately exits on the bugged case
-            _halted = false;
-
-            var previousOpcode = _bus.Read((ushort)(_registers.ProgramCounter - 2));
-            var nextOpcode = _bus.Read(_registers.ProgramCounter);
-
-            if (Instruction.FromOpcode(previousOpcode) is Instruction.EnableInterrupt)
-            {
-                // Interrupt will get fired and must return to the halt itself
-                _registers.ProgramCounter--;
-            }
-            else
-            {
-                // Regular duplication bug -> cpu immediately wakes up and next byte gets executed twice
-                _bufferedOpcode = nextOpcode;
-            }
-        }
-
-        return 1;
-    }
-
-    private ulong EnableInterrupt(Instruction.EnableInterrupt _)
-    {
-        _interruptMaster.Enque(true, 1);    // Delay for one step
-        return 1;
-    }
-
-    private ulong DisableInterrupt(Instruction.DisableInterrupt _)
-    {
-        _interruptMaster.Enque(false, 0);
-        return 1;
-    }
-
     // Load
     private ulong LoadLiteral8(Instruction.LoadLiteral8 inst)
     {
