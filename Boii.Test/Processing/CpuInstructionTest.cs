@@ -5,33 +5,6 @@ namespace Boii.Processing.Test;
 
 public class CpuInstructionTest
 {
-    // Carry flag
-    [Fact]
-    public void SetCarryFlag()
-    {
-        var bus = Bus.From([
-            0b0011_0111         // scf
-        ]);
-        var cpu = Cpu.Create(bus);
-
-        cpu.Step();
-
-        AssertCpu(1, new(0x0000 | 0b0001_0000, 0, 0, 0, 0, 0x0101), cpu);
-    }
-
-    [Fact]
-    public void ComplementCarryFlag()
-    {
-        var bus = Bus.From([
-            0b0011_1111         // ccf
-        ]);
-        var cpu = Cpu.CreateWithRegisterState(bus, new(0x0000 | 0b0001_0000, 0, 0, 0, 0, 0x0100));
-
-        cpu.Step();
-
-        AssertCpu(1, new(0x0000 | 0b0000_0000, 0, 0, 0, 0, 0x0101), cpu);
-    }
-
     // Stack manipulation
     [Fact]
     public void Push()

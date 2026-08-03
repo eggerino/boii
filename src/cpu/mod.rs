@@ -386,8 +386,8 @@ where
             Instruction::Return => self.return_(),
             Instruction::ConditionalReturn(cond) => self.conditional_return(cond),
             Instruction::ReturnInterrupt => self.return_interrupt(),
-            Instruction::SetCarryFlag => todo!(),
-            Instruction::ComplementCarryFlag => todo!(),
+            Instruction::SetCarryFlag => Ok(self.set_carry_flag()),
+            Instruction::ComplementCarryFlag => Ok(self.complement_carry_flag()),
             Instruction::Push(register16_stack) => todo!(),
             Instruction::Pop(register16_stack) => todo!(),
             Instruction::AddSignedLiteral8ToStackPointer => todo!(),
@@ -976,6 +976,21 @@ where
         let address = combine_bytes(high, low);
         self.reg.prog_counter = address;
         Ok(())
+    }
+
+    // Carry flag
+    fn set_carry_flag(&mut self) -> usize {
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(true);
+        1
+    }
+
+    fn complement_carry_flag(&mut self) -> usize {
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(!self.reg.carry_flag());
+        1
     }
 }
 

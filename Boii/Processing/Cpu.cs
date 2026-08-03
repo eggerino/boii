@@ -9,25 +9,6 @@ namespace Boii.Processing;
 
 public class Cpu
 {   
-    // Carry flag
-    private ulong SetCarryFlag(Instruction.SetCarryFlag _)
-    {
-        _registers.Subtraction = false;
-        _registers.HalfCarry = false;
-        _registers.Carry = true;
-
-        return 1;
-    }
-
-    private ulong ComplementCarryFlag(Instruction.ComplementCarryFlag _)
-    {
-        _registers.Subtraction = false;
-        _registers.HalfCarry = false;
-        _registers.Carry = !_registers.Carry;
-
-        return 1;
-    }
-
     // Stack manipulation
     private ulong Push(Instruction.Push inst)
     {
