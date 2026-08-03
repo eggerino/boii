@@ -360,13 +360,13 @@ where
             Instruction::IncrementRegister16(op) => Ok(self.increment_register16(op)),
             Instruction::DecrementRegister16(op) => Ok(self.decrement_register16(op)),
             Instruction::AddRegister16ToHL(op) => Ok(self.add_register16_to_hl(op)),
-            Instruction::ComplementA => todo!(),
-            Instruction::AndWithA(op) => todo!(),
-            Instruction::AndLiteral8WithA => todo!(),
-            Instruction::XorWithA(register8) => todo!(),
-            Instruction::XorLiteral8WithA => todo!(),
-            Instruction::OrWithA(register8) => todo!(),
-            Instruction::OrLiteral8WithA => todo!(),
+            Instruction::ComplementA => Ok(self.complement_a()),
+            Instruction::AndWithA(op) => self.and_with_a(op),
+            Instruction::AndLiteral8WithA => self.and_literal8_with_a(),
+            Instruction::XorWithA(op) => self.xor_with_a(op),
+            Instruction::XorLiteral8WithA => self.xor_literal8_with_a(),
+            Instruction::OrWithA(op) => self.or_with_a(op),
+            Instruction::OrLiteral8WithA => self.or_literal8_with_a(),
             Instruction::RotateLeftA => todo!(),
             Instruction::RotateLeftCarryA => todo!(),
             Instruction::RotateRightA => todo!(),
@@ -709,9 +709,91 @@ where
 
         self.reg.hl = new_value;
         self.reg.set_sub_flag(false);
-        self.reg.set_half_carry_flag(Self::is_overflow_bit11(old_value as i32, operand as i32));
-        self.reg.set_carry_flag(Self::is_overflow_bit15(old_value as i32, operand as i32));
+        self.reg
+            .set_half_carry_flag(Self::is_overflow_bit11(old_value as i32, operand as i32));
+        self.reg
+            .set_carry_flag(Self::is_overflow_bit15(old_value as i32, operand as i32));
         2
+    }
+
+    // Bitwise logic
+    fn complement_a(&mut self) -> usize {
+        self.reg.set_a(!self.reg.a());
+        self.reg.set_sub_flag(true);
+        self.reg.set_half_carry_flag(true);
+        1
+    }
+
+    fn and_with_a(&mut self, op: Register8) -> Result<usize> {
+        let operand = self.get_register8(op)?;
+        self.do_and_a(operand);
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn and_literal8_with_a(&mut self) -> Result<usize> {
+        let operand = self.fetch_u8()?;
+        self.do_and_a(operand);
+        Ok(2)
+    }
+
+    fn do_and_a(&mut self, op: u8) {
+        let a = self.reg.a() & op;
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(a == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(true);
+        self.reg.set_carry_flag(false);
+    }
+
+    fn xor_with_a(&mut self, op: Register8) -> Result<usize> {
+        let operand = self.get_register8(op)?;
+        self.do_xor_a(operand);
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn xor_literal8_with_a(&mut self) -> Result<usize> {
+        let operand = self.fetch_u8()?;
+        self.do_xor_a(operand);
+        Ok(2)
+    }
+
+    fn do_xor_a(&mut self, op: u8) {
+        let a = self.reg.a() ^ op;
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(a == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(false);
+    }
+
+    fn or_with_a(&mut self, op: Register8) -> Result<usize> {
+        let operand = self.get_register8(op)?;
+        self.do_or_a(operand);
+        match op {
+            Register8::HLAsPointer => Ok(2),
+            _ => Ok(1),
+        }
+    }
+
+    fn or_literal8_with_a(&mut self) -> Result<usize> {
+        let operand = self.fetch_u8()?;
+        self.do_or_a(operand);
+        Ok(2)
+    }
+
+    fn do_or_a(&mut self, op: u8) {
+        let a = self.reg.a() | op;
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(a == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(false);
     }
 
     fn do_call(&mut self, address: u16) -> Result<()> {
