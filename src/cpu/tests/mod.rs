@@ -7,6 +7,7 @@ mod interrupt;
 mod jump;
 mod load;
 mod misc;
+mod stack_manipulation;
 
 use super::*;
 use crate::memory::Error;

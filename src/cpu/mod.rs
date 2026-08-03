@@ -388,12 +388,18 @@ where
             Instruction::ReturnInterrupt => self.return_interrupt(),
             Instruction::SetCarryFlag => Ok(self.set_carry_flag()),
             Instruction::ComplementCarryFlag => Ok(self.complement_carry_flag()),
-            Instruction::Push(register16_stack) => todo!(),
-            Instruction::Pop(register16_stack) => todo!(),
-            Instruction::AddSignedLiteral8ToStackPointer => todo!(),
-            Instruction::LoadFromStackPointerIntoLiteral16Pointer => todo!(),
-            Instruction::LoadFromStackPointerPlusSignedLiteral8IntoHL => todo!(),
-            Instruction::LoadFromHLIntoStackPointer => todo!(),
+            Instruction::Push(op) => self.push(op),
+            Instruction::Pop(op) => self.pop(op),
+            Instruction::AddSignedLiteral8ToStackPointer => {
+                self.add_signed_literal8_to_stack_pointer()
+            }
+            Instruction::LoadFromStackPointerIntoLiteral16Pointer => {
+                self.load_from_stack_pointer_into_literal16_pointer()
+            }
+            Instruction::LoadFromStackPointerPlusSignedLiteral8IntoHL => {
+                self.load_from_stack_pointer_plus_signed_literal8_into_hl()
+            }
+            Instruction::LoadFromHLIntoStackPointer => Ok(self.load_from_hl_into_stack_pointer()),
             Instruction::Prefixed => todo!(),
             Instruction::Invalid(opcode) => Err(Error::InvalidInstruction { opcode }),
         }
@@ -866,11 +872,7 @@ where
     // Jump and subroutine
     fn jump_relative(&mut self) -> Result<usize> {
         let offset = self.fetch_u8()? as i8;
-        self.reg.prog_counter = if offset >= 0 {
-            self.reg.prog_counter.wrapping_add(offset as u16)
-        } else {
-            self.reg.prog_counter.wrapping_sub((-offset) as u16)
-        };
+        self.reg.prog_counter = self.reg.prog_counter.wrapping_add_signed(offset as i16);
         Ok(3)
     }
 
@@ -879,11 +881,7 @@ where
         let offset = self.fetch_u8()? as i8;
 
         if condition {
-            self.reg.prog_counter = if offset >= 0 {
-                self.reg.prog_counter.wrapping_add(offset as u16)
-            } else {
-                self.reg.prog_counter.wrapping_sub((-offset) as u16)
-            };
+            self.reg.prog_counter = self.reg.prog_counter.wrapping_add_signed(offset as i16);
             Ok(3)
         } else {
             Ok(2)
@@ -991,6 +989,69 @@ where
         self.reg.set_half_carry_flag(false);
         self.reg.set_carry_flag(!self.reg.carry_flag());
         1
+    }
+
+    // Stack manipulation
+    fn push(&mut self, op: Register16Stack) -> Result<usize> {
+        let value = self.get_register16stack(op);
+        let high = high_byte(value);
+        let low = low_byte(value);
+        self.bus.write(self.reg.stack_ptr.wrapping_sub(1), high)?;
+        self.bus.write(self.reg.stack_ptr.wrapping_sub(2), low)?;
+        self.reg.stack_ptr = self.reg.stack_ptr.wrapping_sub(2);
+        Ok(4)
+    }
+
+    fn pop(&mut self, op: Register16Stack) -> Result<usize> {
+        let low = self.bus.read(self.reg.stack_ptr)?;
+        let high = self.bus.read(self.reg.stack_ptr.wrapping_add(1))?;
+        self.reg.stack_ptr = self.reg.stack_ptr.wrapping_add(2);
+        let value = combine_bytes(high, low);
+        self.set_register16stack(op, value);
+        Ok(3)
+    }
+
+    fn add_signed_literal8_to_stack_pointer(&mut self) -> Result<usize> {
+        let old_value = self.reg.stack_ptr;
+        let operand = self.fetch_u8()? as i8;
+        let new_value = old_value.wrapping_add_signed(operand as i16);
+
+        self.reg.stack_ptr = new_value;
+        self.reg.set_zero_flag(false);
+        self.reg.set_sub_flag(false);
+        self.reg
+            .set_half_carry_flag(Self::is_overflow_bit3(old_value as i32, operand as i32));
+        self.reg
+            .set_carry_flag(Self::is_overflow_bit7(old_value as i32, operand as i32));
+        Ok(4)
+    }
+
+    fn load_from_stack_pointer_into_literal16_pointer(&mut self) -> Result<usize> {
+        let dest = self.fetch_u16()?;
+        self.bus.write(dest, low_byte(self.reg.stack_ptr))?;
+        self.bus
+            .write(dest.wrapping_add(1), high_byte(self.reg.stack_ptr))?;
+        Ok(5)
+    }
+
+    fn load_from_stack_pointer_plus_signed_literal8_into_hl(&mut self) -> Result<usize> {
+        let old_value = self.reg.stack_ptr;
+        let operand = self.fetch_u8()? as i8;
+        let new_value = old_value.wrapping_add_signed(operand as i16);
+
+        self.reg.hl = new_value;
+        self.reg.set_zero_flag(false);
+        self.reg.set_sub_flag(false);
+        self.reg
+            .set_half_carry_flag(Self::is_overflow_bit3(old_value as i32, operand as i32));
+        self.reg
+            .set_carry_flag(Self::is_overflow_bit7(old_value as i32, operand as i32));
+        Ok(3)
+    }
+
+    fn load_from_hl_into_stack_pointer(&mut self) -> usize {
+        self.reg.stack_ptr = self.reg.hl;
+        2
     }
 }
 
