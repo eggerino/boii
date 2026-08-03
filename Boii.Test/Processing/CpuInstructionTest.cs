@@ -5,37 +5,6 @@ namespace Boii.Processing.Test;
 
 public class CpuInstructionTest
 {
-    // Bit shift
-    [Fact]
-    public void RotateLeftA_WithAndWithoutCarry()
-    {
-        var bus = Bus.From([
-            0b0000_0111,                // rlca
-            0b0001_0111                 // rla
-        ]);
-        var cpu = Cpu.CreateWithRegisterState(bus, new(0b1000_1110_0000_0000, 0, 0, 0, 0, 0x0100));
-
-        cpu.Step();
-        AssertCpu(1, new(0b0001_1101_0001_0000, 0, 0, 0, 0, 0x0101), cpu);
-        cpu.Step();
-        AssertCpu(2, new(0b0011_1011_0000_0000, 0, 0, 0, 0, 0x0102), cpu);
-    }
-
-    [Fact]
-    public void RotateRightA_WithAndWithoutCarry()
-    {
-        var bus = Bus.From([
-            0b0000_1111,                // rrca
-            0b0001_1111                 // rra
-        ]);
-        var cpu = Cpu.CreateWithRegisterState(bus, new(0b0111_0001_0000_0000, 0, 0, 0, 0, 0x0100));
-
-        cpu.Step();
-        AssertCpu(1, new(0b1011_1000_0001_0000, 0, 0, 0, 0, 0x0101), cpu);
-        cpu.Step();
-        AssertCpu(2, new(0b1101_1100_0000_0000, 0, 0, 0, 0, 0x0102), cpu);
-    }
-
     // Jump and subroutine
     [Fact]
     public void JumpRelative()

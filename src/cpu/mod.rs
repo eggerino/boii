@@ -2,6 +2,8 @@ mod imd;
 mod instr;
 mod registers;
 
+use std::ops::ShlAssign;
+
 use crate::{
     bits::{Bits, combine_bytes, high_byte, low_byte},
     cpu::{
@@ -367,10 +369,10 @@ where
             Instruction::XorLiteral8WithA => self.xor_literal8_with_a(),
             Instruction::OrWithA(op) => self.or_with_a(op),
             Instruction::OrLiteral8WithA => self.or_literal8_with_a(),
-            Instruction::RotateLeftA => todo!(),
-            Instruction::RotateLeftCarryA => todo!(),
-            Instruction::RotateRightA => todo!(),
-            Instruction::RotateRightCarryA => todo!(),
+            Instruction::RotateLeftA => Ok(self.rotate_left_a()),
+            Instruction::RotateLeftCarryA => Ok(self.rotate_left_carry_a()),
+            Instruction::RotateRightA => Ok(self.rotate_right_a()),
+            Instruction::RotateRightCarryA => Ok(self.rotate_right_carry_a()),
             Instruction::JumpRelative => todo!(),
             Instruction::ConditionalJumpRelative(condition) => todo!(),
             Instruction::Jump => todo!(),
@@ -794,6 +796,69 @@ where
         self.reg.set_sub_flag(false);
         self.reg.set_half_carry_flag(false);
         self.reg.set_carry_flag(false);
+    }
+
+    // Bit shift
+    fn rotate_left_a(&mut self) -> usize {
+        let mut a = self.reg.a();
+
+        let carry = a > 0b0111_1111;
+        a = a.rotate_left(1);
+
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(false);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+        1
+    }
+
+    fn rotate_left_carry_a(&mut self) -> usize {
+        let mut a = self.reg.a();
+
+        let carry = a > 0b0111_1111;
+        a <<= 1;
+        if self.reg.carry_flag() {
+            a |= 0b0000_0001;
+        }
+
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(false);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+        1
+    }
+
+    fn rotate_right_a(&mut self) -> usize {
+        let mut a = self.reg.a();
+
+        let carry = (a % 2) == 1;
+        a = a.rotate_right(1);
+
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(false);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+        1
+    }
+
+    fn rotate_right_carry_a(&mut self) -> usize {
+        let mut a = self.reg.a();
+
+        let carry = (a % 2) == 1;
+        a >>= 1;
+        if self.reg.carry_flag() {
+            a |= 0b1000_0000;
+        }
+
+        self.reg.set_a(a);
+        self.reg.set_zero_flag(false);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+        1
     }
 
     fn do_call(&mut self, address: u16) -> Result<()> {

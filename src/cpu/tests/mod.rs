@@ -1,5 +1,6 @@
 mod arithmetic16bit;
 mod arithmetic8bit;
+mod bit_shift;
 mod bitwise_logic;
 mod interrupt;
 mod load;
