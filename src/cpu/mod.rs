@@ -8,7 +8,9 @@ use crate::{
     bits::{Bits, combine_bytes, high_byte, low_byte},
     cpu::{
         imd::InterruptMasterDispatcher,
-        instr::{Condition, Instruction, Register8, Register16, Register16Memory, Register16Stack},
+        instr::{
+            Condition, Instruction, Register8, Register16, Register16Memory, Register16Stack, U3,
+        },
         registers::Registers,
     },
     memory::{self, Read, Write},
@@ -373,17 +375,17 @@ where
             Instruction::RotateLeftCarryA => Ok(self.rotate_left_carry_a()),
             Instruction::RotateRightA => Ok(self.rotate_right_a()),
             Instruction::RotateRightCarryA => Ok(self.rotate_right_carry_a()),
-            Instruction::JumpRelative => todo!(),
-            Instruction::ConditionalJumpRelative(condition) => todo!(),
-            Instruction::Jump => todo!(),
-            Instruction::ConditionalJump(condition) => todo!(),
-            Instruction::JumpHL => todo!(),
-            Instruction::Call => todo!(),
-            Instruction::ConditionalCall(condition) => todo!(),
-            Instruction::Restart(u3) => todo!(),
-            Instruction::Return => todo!(),
-            Instruction::ConditionalReturn(condition) => todo!(),
-            Instruction::ReturnInterrupt => todo!(),
+            Instruction::JumpRelative => self.jump_relative(),
+            Instruction::ConditionalJumpRelative(cond) => self.conditional_jump_relative(cond),
+            Instruction::Jump => self.jump(),
+            Instruction::ConditionalJump(cond) => self.conditional_jump(cond),
+            Instruction::JumpHL => Ok(self.jump_hl()),
+            Instruction::Call => self.call(),
+            Instruction::ConditionalCall(cond) => self.conditional_call(cond),
+            Instruction::Restart(target) => self.restart(target),
+            Instruction::Return => self.return_(),
+            Instruction::ConditionalReturn(cond) => self.conditional_return(cond),
+            Instruction::ReturnInterrupt => self.return_interrupt(),
             Instruction::SetCarryFlag => todo!(),
             Instruction::ComplementCarryFlag => todo!(),
             Instruction::Push(register16_stack) => todo!(),
@@ -861,13 +863,117 @@ where
         1
     }
 
+    // Jump and subroutine
+    fn jump_relative(&mut self) -> Result<usize> {
+        let offset = self.fetch_u8()? as i8;
+        self.reg.prog_counter = if offset >= 0 {
+            self.reg.prog_counter.wrapping_add(offset as u16)
+        } else {
+            self.reg.prog_counter.wrapping_sub((-offset) as u16)
+        };
+        Ok(3)
+    }
+
+    fn conditional_jump_relative(&mut self, cond: Condition) -> Result<usize> {
+        let condition = self.get_condition(cond);
+        let offset = self.fetch_u8()? as i8;
+
+        if condition {
+            self.reg.prog_counter = if offset >= 0 {
+                self.reg.prog_counter.wrapping_add(offset as u16)
+            } else {
+                self.reg.prog_counter.wrapping_sub((-offset) as u16)
+            };
+            Ok(3)
+        } else {
+            Ok(2)
+        }
+    }
+
+    fn jump(&mut self) -> Result<usize> {
+        self.reg.prog_counter = self.fetch_u16()?;
+        Ok(4)
+    }
+
+    fn conditional_jump(&mut self, cond: Condition) -> Result<usize> {
+        let condition = self.get_condition(cond);
+        let target = self.fetch_u16()?;
+
+        if condition {
+            self.reg.prog_counter = target;
+            Ok(4)
+        } else {
+            Ok(3)
+        }
+    }
+
+    fn jump_hl(&mut self) -> usize {
+        self.reg.prog_counter = self.reg.hl;
+        1
+    }
+
+    fn call(&mut self) -> Result<usize> {
+        let address = self.fetch_u16()?;
+        self.do_call(address)?;
+        Ok(6)
+    }
+
+    fn conditional_call(&mut self, cond: Condition) -> Result<usize> {
+        let address = self.fetch_u16()?;
+        let condition = self.get_condition(cond);
+
+        if condition {
+            self.do_call(address)?;
+            Ok(6)
+        } else {
+            Ok(3)
+        }
+    }
+
+    fn restart(&mut self, target: U3) -> Result<usize> {
+        let target: u8 = target.into();
+        let address = (target as u16) * 8;
+        self.do_call(address)?;
+        Ok(4)
+    }
+
     fn do_call(&mut self, address: u16) -> Result<()> {
         let ret_addr = self.reg.prog_counter;
         let high = high_byte(ret_addr);
         let low = low_byte(ret_addr);
-        self.bus.write(self.reg.stack_ptr, high)?;
-        self.bus.write(self.reg.stack_ptr - 1, low)?;
-        self.reg.stack_ptr -= 2;
+        self.bus.write(self.reg.stack_ptr.wrapping_sub(1), high)?;
+        self.bus.write(self.reg.stack_ptr.wrapping_sub(2), low)?;
+        self.reg.stack_ptr = self.reg.stack_ptr.wrapping_sub(2);
+        self.reg.prog_counter = address;
+        Ok(())
+    }
+
+    fn return_(&mut self) -> Result<usize> {
+        self.do_return()?;
+        Ok(4)
+    }
+
+    fn conditional_return(&mut self, cond: Condition) -> Result<usize> {
+        let condition = self.get_condition(cond);
+        if condition {
+            self.do_return()?;
+            Ok(5)
+        } else {
+            Ok(2)
+        }
+    }
+
+    fn return_interrupt(&mut self) -> Result<usize> {
+        self.do_return()?;
+        self.imd.enque(true, 0); // Is immediatly after the return
+        Ok(4)
+    }
+
+    fn do_return(&mut self) -> Result<()> {
+        let low = self.bus.read(self.reg.stack_ptr)?;
+        let high = self.bus.read(self.reg.stack_ptr + 1)?;
+        self.reg.stack_ptr = self.reg.stack_ptr.wrapping_add(2);
+        let address = combine_bytes(high, low);
         self.reg.prog_counter = address;
         Ok(())
     }
