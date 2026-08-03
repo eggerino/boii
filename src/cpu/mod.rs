@@ -2,14 +2,13 @@ mod imd;
 mod instr;
 mod registers;
 
-use std::ops::ShlAssign;
-
 use crate::{
     bits::{Bits, combine_bytes, high_byte, low_byte},
     cpu::{
         imd::InterruptMasterDispatcher,
         instr::{
-            Condition, Instruction, Register8, Register16, Register16Memory, Register16Stack, U3,
+            Condition, Instruction, PrefixedInstruction, Register8, Register16, Register16Memory,
+            Register16Stack, U3,
         },
         registers::Registers,
     },
@@ -400,7 +399,7 @@ where
                 self.load_from_stack_pointer_plus_signed_literal8_into_hl()
             }
             Instruction::LoadFromHLIntoStackPointer => Ok(self.load_from_hl_into_stack_pointer()),
-            Instruction::Prefixed => todo!(),
+            Instruction::Prefixed => self.prefixed(),
             Instruction::Invalid(opcode) => Err(Error::InvalidInstruction { opcode }),
         }
     }
@@ -1052,6 +1051,227 @@ where
     fn load_from_hl_into_stack_pointer(&mut self) -> usize {
         self.reg.stack_ptr = self.reg.hl;
         2
+    }
+
+    // 16 Bit instructions
+    fn prefixed(&mut self) -> Result<usize> {
+        let next_opcode = self.fetch_u8()?;
+        let inst = PrefixedInstruction::from(next_opcode);
+        self.execute_prefixed(inst)
+    }
+
+    fn execute_prefixed(&mut self, inst: PrefixedInstruction) -> Result<usize> {
+        match inst {
+            // Bit shift
+            PrefixedInstruction::RotateLeft(op) => self.prefixed_rotate_left(op),
+            PrefixedInstruction::RotateLeftThroughCarry(op) => {
+                self.prefixed_rotate_left_through_carry(op)
+            }
+            PrefixedInstruction::RotateRight(op) => self.prefixed_rotate_right(op),
+            PrefixedInstruction::RotateRightThroughCarry(op) => {
+                self.prefixed_rotate_right_through_carry(op)
+            }
+            PrefixedInstruction::ShiftLeftArithmetic(op) => self.prefixed_shift_left_arithmetic(op),
+            PrefixedInstruction::ShiftRightArithmetic(op) => {
+                self.prefixed_shift_right_arithmetic(op)
+            }
+            PrefixedInstruction::Swap(op) => self.prefixed_swap(op),
+            PrefixedInstruction::ShiftRightLogical(op) => self.prefixed_shift_right_logical(op),
+
+            // Bit flag
+            PrefixedInstruction::CheckBit(op, idx) => self.prefixed_check_bit(op, idx),
+            PrefixedInstruction::SetBit(op, idx) => self.prefixed_set_bit(op, idx),
+            PrefixedInstruction::ResetBit(op, idx) => self.prefixed_reset_bit(op, idx),
+        }
+    }
+
+    // Bit shift
+    fn prefixed_rotate_left(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let carry = operand > 0b0111_1111;
+        operand = operand.rotate_left(1);
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_rotate_left_through_carry(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let carry = operand > 0b0111_1111;
+        operand <<= 1;
+        if self.reg.carry_flag() {
+            operand |= 0b0000_0001;
+        }
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_rotate_right(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let carry = (operand % 2) == 1;
+        operand = operand.rotate_right(1);
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_rotate_right_through_carry(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let carry = (operand % 2) == 1;
+        operand >>= 1;
+        if self.reg.carry_flag() {
+            operand |= 0b1000_0000;
+        }
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_shift_left_arithmetic(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let carry = operand > 0b0111_1111;
+        operand <<= 1;
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_shift_right_arithmetic(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let high_bit = operand > 0b0111_1111;
+        let carry = (operand % 2) == 1;
+        operand >>= 1;
+        if high_bit {
+            operand |= 0b1000_0000;
+        }
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_swap(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let lower_nibble = operand & 0xF;
+        operand >>= 4;
+        operand |= lower_nibble << 4;
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(false);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_shift_right_logical(&mut self, op: Register8) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let carry = (operand % 2) == 1;
+        operand >>= 1;
+
+        self.set_register8(op, operand)?;
+        self.reg.set_zero_flag(operand == 0);
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(false);
+        self.reg.set_carry_flag(carry);
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    // Bit flag
+    fn prefixed_check_bit(&mut self, op: Register8, idx: U3) -> Result<usize> {
+        let operand = self.get_register8(op)?;
+        let index: u8 = idx.into();
+
+        self.reg.set_zero_flag(operand.bit(index as i32));
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(true);
+
+        match op {
+            Register8::HLAsPointer => Ok(3),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_set_bit(&mut self, op: Register8, idx: U3) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let index: u8 = idx.into();
+
+        operand = operand.set_bit(index as i32);
+        self.set_register8(op, operand)?;
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
+    }
+
+    fn prefixed_reset_bit(&mut self, op: Register8, idx: U3) -> Result<usize> {
+        let mut operand = self.get_register8(op)?;
+        let index: u8 = idx.into();
+
+        operand = operand.clear_bit(index as i32);
+        self.set_register8(op, operand)?;
+
+        match op {
+            Register8::HLAsPointer => Ok(4),
+            _ => Ok(2),
+        }
     }
 }
 

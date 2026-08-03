@@ -3,6 +3,7 @@ mod arithmetic8bit;
 mod bit_shift;
 mod bitwise_logic;
 mod carry_flag;
+mod inst16bit;
 mod interrupt;
 mod jump;
 mod load;
@@ -28,6 +29,11 @@ impl Write for Vec<u8> {
 
 // Constructor for a mocked bus containing a program at the usual start address
 fn prog<const N: usize>(src: [u8; N]) -> Vec<u8> {
+    let mut memory = vec![0; 0x0100];
+    memory.extend_from_slice(&src);
+    memory
+}
+fn prog_vec(src: Vec<u8>) -> Vec<u8> {
     let mut memory = vec![0; 0x0100];
     memory.extend_from_slice(&src);
     memory
