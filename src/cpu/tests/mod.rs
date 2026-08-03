@@ -3,6 +3,7 @@ mod arithmetic8bit;
 mod bit_shift;
 mod bitwise_logic;
 mod carry_flag;
+mod halt;
 mod inst16bit;
 mod interrupt;
 mod jump;

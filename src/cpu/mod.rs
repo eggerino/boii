@@ -130,7 +130,7 @@ where
         }
 
         if self.pending_interrupts()? != 0 {
-            self.halted = true; // Wake up on pending interrupts
+            self.halted = false; // Wake up on pending interrupts (but not handle it)
             return Ok(None);
         }
 
