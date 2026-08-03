@@ -81,10 +81,8 @@ where
     }
 
     pub fn step(&mut self) -> Result<usize> {
-        self.advance().map(|x| {
-            self.ticks = self.ticks.wrapping_add(x);
-            x
-        })
+        self.advance()
+            .inspect(|&x| self.ticks = self.ticks.wrapping_add(x))
     }
 
     fn advance(&mut self) -> Result<usize> {
@@ -160,7 +158,7 @@ where
             self.imd.force(false);
 
             // Call the address of the interrupt
-            let addr = 0x0040 + (idx as u16) * 0x0008;
+            let addr = 0x0040_u16.wrapping_add((idx as u16).wrapping_mul(0x0008));
             self.do_call(addr)?;
 
             // Interrupts resume execution
@@ -189,10 +187,7 @@ where
     fn fetch_u8(&mut self) -> Result<u8> {
         self.bus
             .read(self.reg.prog_counter)
-            .map(|x| {
-                self.reg.prog_counter += 1;
-                x
-            })
+            .inspect(|_| self.reg.prog_counter = self.reg.prog_counter.wrapping_add(1))
             .map_err(|x| x.into())
     }
 
@@ -216,14 +211,35 @@ where
 
     fn set_register8(&mut self, register: Register8, value: u8) -> Result<()> {
         match register {
-            Register8::B => Ok(self.reg.set_b(value)),
-            Register8::C => Ok(self.reg.set_c(value)),
-            Register8::D => Ok(self.reg.set_d(value)),
-            Register8::E => Ok(self.reg.set_e(value)),
-            Register8::H => Ok(self.reg.set_h(value)),
-            Register8::L => Ok(self.reg.set_l(value)),
+            Register8::B => {
+                self.reg.set_b(value);
+                Ok(())
+            }
+            Register8::C => {
+                self.reg.set_c(value);
+                Ok(())
+            }
+            Register8::D => {
+                self.reg.set_d(value);
+                Ok(())
+            }
+            Register8::E => {
+                self.reg.set_e(value);
+                Ok(())
+            }
+            Register8::H => {
+                self.reg.set_h(value);
+                Ok(())
+            }
+            Register8::L => {
+                self.reg.set_l(value);
+                Ok(())
+            }
             Register8::HLAsPointer => self.bus.write(self.reg.hl, value).map_err(|e| e.into()),
-            Register8::A => Ok(self.reg.set_a(value)),
+            Register8::A => {
+                self.reg.set_a(value);
+                Ok(())
+            }
         }
     }
 
@@ -267,14 +283,14 @@ where
         match register {
             Register16Memory::BC => self.bus.read(self.reg.bc),
             Register16Memory::DE => self.bus.read(self.reg.de),
-            Register16Memory::HLInc => self.bus.read(self.reg.hl).map(|x| {
-                self.reg.hl += 1;
-                x
-            }),
-            Register16Memory::HLDec => self.bus.read(self.reg.hl).map(|x| {
-                self.reg.hl -= 1;
-                x
-            }),
+            Register16Memory::HLInc => self
+                .bus
+                .read(self.reg.hl)
+                .inspect(|_| self.reg.hl = self.reg.hl.wrapping_add(1)),
+            Register16Memory::HLDec => self
+                .bus
+                .read(self.reg.hl)
+                .inspect(|_| self.reg.hl = self.reg.hl.wrapping_sub(1)),
         }
         .map_err(|e| e.into())
     }
@@ -283,14 +299,14 @@ where
         match register {
             Register16Memory::BC => self.bus.write(self.reg.bc, value),
             Register16Memory::DE => self.bus.write(self.reg.de, value),
-            Register16Memory::HLInc => self.bus.write(self.reg.hl, value).map(|x| {
-                self.reg.hl += 1;
-                x
-            }),
-            Register16Memory::HLDec => self.bus.write(self.reg.hl, value).map(|x| {
-                self.reg.hl -= 1;
-                x
-            }),
+            Register16Memory::HLInc => self
+                .bus
+                .write(self.reg.hl, value)
+                .inspect(|_| self.reg.hl = self.reg.hl.wrapping_add(1)),
+            Register16Memory::HLDec => self
+                .bus
+                .write(self.reg.hl, value)
+                .inspect(|_| self.reg.hl = self.reg.hl.wrapping_sub(1)),
         }
         .map_err(|e| e.into())
     }
@@ -305,23 +321,23 @@ where
     }
 
     fn is_overflow_bit3(old_value: i32, increment: i32) -> bool {
-        ((old_value & 0x000F) + (increment & 0x000F)) > 0x000F
+        ((old_value & 0x000F).wrapping_add(increment & 0x000F)) > 0x000F
     }
 
     fn is_overflow_bit7(old_value: i32, increment: i32) -> bool {
-        ((old_value & 0x00FF) + (increment & 0x00FF)) > 0x00FF
+        ((old_value & 0x00FF).wrapping_add(increment & 0x00FF)) > 0x00FF
     }
 
     fn is_overflow_bit11(old_value: i32, increment: i32) -> bool {
-        ((old_value & 0x0FFF) + (increment & 0x0FFF)) > 0x0FFF
+        ((old_value & 0x0FFF).wrapping_add(increment & 0x0FFF)) > 0x0FFF
     }
 
     fn is_overflow_bit15(old_value: i32, increment: i32) -> bool {
-        ((old_value & 0xFFFF) + (increment & 0xFFFF)) > 0xFFFF
+        ((old_value & 0xFFFF).wrapping_add(increment & 0xFFFF)) > 0xFFFF
     }
 
     fn is_borroww_bit4(old_value: i32, decrement: i32) -> bool {
-        ((old_value & 0x000F) - (decrement & 0x000F)) < 0
+        ((old_value & 0x000F).wrapping_sub(decrement & 0x000F)) < 0
     }
 
     // Instruction execution
@@ -411,22 +427,22 @@ where
 
     fn decimal_adjust_a(&mut self) -> usize {
         let mut a = self.reg.a();
-        let mut adjustment = 0;
+        let mut adjustment: u8 = 0;
 
         if self.reg.sub_flag() {
             if self.reg.half_carry_flag() {
-                adjustment += 0x06;
+                adjustment = adjustment.wrapping_add(0x06);
             }
             if self.reg.carry_flag() {
-                adjustment += 0x60;
+                adjustment = adjustment.wrapping_add(0x60);
             }
             a = a.wrapping_sub(adjustment);
         } else {
             if self.reg.half_carry_flag() || (a & 0x0F) > 0x09 {
-                adjustment += 0x06;
+                adjustment = adjustment.wrapping_add(0x06);
             }
             if self.reg.carry_flag() || a > 0x99 {
-                adjustment += 0x60;
+                adjustment = adjustment.wrapping_add(0x60);
                 self.reg.set_carry_flag(true);
             }
             a = a.wrapping_add(adjustment);
@@ -448,12 +464,12 @@ where
             // Halt immediatly exits on the bugged case
             self.halted = false;
 
-            let prev_opcode = self.bus.read(self.reg.prog_counter - 2)?;
+            let prev_opcode = self.bus.read(self.reg.prog_counter.wrapping_sub(2))?;
             let next_opcode = self.bus.read(self.reg.prog_counter)?;
 
             if matches!(Instruction::from(prev_opcode), Instruction::EnableInterrupt) {
                 // Interrupt will get fired and must return to the halt itself
-                self.reg.prog_counter -= 1;
+                self.reg.prog_counter = self.reg.prog_counter.wrapping_sub(1);
             } else {
                 // Regular dplication bug -> cpu immediatly wakes up and next byte gets executed twice
                 self.buffered_opcode = Some(next_opcode);
@@ -510,13 +526,13 @@ where
     }
 
     fn load_from_a_into_literal8_high_pointer(&mut self) -> Result<usize> {
-        let address = self.fetch_u8()? as u16 + 0xFF00;
+        let address = (self.fetch_u8()? as u16).wrapping_add(0xFF00);
         self.bus.write(address, self.reg.a())?;
         Ok(3)
     }
 
     fn load_from_a_into_c_high_pointer(&mut self) -> Result<usize> {
-        let address = self.reg.c() as u16 + 0xFF00;
+        let address = (self.reg.c() as u16).wrapping_add(0xFF00);
         self.bus.write(address, self.reg.a())?;
         Ok(2)
     }
@@ -535,14 +551,14 @@ where
     }
 
     fn load_from_literal8_high_pointer_into_a(&mut self) -> Result<usize> {
-        let address = self.fetch_u8()? as u16 + 0xFF00;
+        let address = (self.fetch_u8()? as u16).wrapping_add(0xFF00);
         let value = self.bus.read(address)?;
         self.reg.set_a(value);
         Ok(3)
     }
 
     fn load_from_c_high_pointer_into_a(&mut self) -> Result<usize> {
-        let address = self.reg.c() as u16 + 0xFF00;
+        let address = (self.reg.c() as u16).wrapping_add(0xFF00);
         let value = self.bus.read(address)?;
         self.reg.set_a(value);
         Ok(2)
@@ -612,7 +628,11 @@ where
     }
 
     fn do_add_a(&mut self, increment: u8, carry: bool) {
-        let operand = if carry { increment + 1 } else { increment };
+        let operand = if carry {
+            increment.wrapping_add(1)
+        } else {
+            increment
+        };
 
         let old_value = self.reg.a();
         let new_value = old_value.wrapping_add(operand);
@@ -657,7 +677,7 @@ where
     }
 
     fn do_subtract_a(&mut self, dec: u8, carry: bool) {
-        let op = if carry { dec + 1 } else { dec };
+        let op = if carry { dec.wrapping_add(1) } else { dec };
 
         let old_value = self.reg.a();
         let new_value = old_value.wrapping_sub(op);
@@ -929,7 +949,7 @@ where
 
     fn restart(&mut self, target: U3) -> Result<usize> {
         let target: u8 = target.into();
-        let address = (target as u16) * 8;
+        let address = (target as u16).wrapping_mul(8);
         self.do_call(address)?;
         Ok(4)
     }
@@ -968,7 +988,7 @@ where
 
     fn do_return(&mut self) -> Result<()> {
         let low = self.bus.read(self.reg.stack_ptr)?;
-        let high = self.bus.read(self.reg.stack_ptr + 1)?;
+        let high = self.bus.read(self.reg.stack_ptr.wrapping_add(1))?;
         self.reg.stack_ptr = self.reg.stack_ptr.wrapping_add(2);
         let address = combine_bytes(high, low);
         self.reg.prog_counter = address;
