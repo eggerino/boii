@@ -5,60 +5,6 @@ namespace Boii.Processing.Test;
 
 public class CpuInstructionTest
 {
-    // 16 Bit arithmetic
-    [Fact]
-    public void IncrementRegister16()
-    {
-        var bus = Bus.From([
-            0b0000_0011,                // inc bc
-            0b0001_0011,                // inc de
-            0b0010_0011,                // inc hl
-            0b0011_0011,                // inc sp
-        ]);
-        var cpu = Cpu.Create(bus);
-
-        Step(cpu, 4);
-
-        AssertCpu(8, new(0, 1, 1, 1, 1, 0x0104), cpu);
-    }
-
-    [Fact]
-    public void DecrementRegister16()
-    {
-        var bus = Bus.From([
-            0b0000_1011,                // dec bc
-            0b0001_1011,                // dec de
-            0b0010_1011,                // dec hl
-            0b0011_1011,                // dec sp
-        ]);
-        var cpu = Cpu.Create(bus);
-
-        Step(cpu, 4);
-
-        AssertCpu(8, new(0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0x0104), cpu);
-    }
-
-    [Fact]
-    public void AddRegister16ToHL()
-    {
-        var bus = Bus.From([
-            0b0000_1001,                // add hl, bc
-            0b0001_1001,                // add hl, de
-            0b0010_1001,                // add hl, hl
-            0b0011_1001,                // add hl, sp
-        ]);
-        var cpu = Cpu.CreateWithRegisterState(bus, new(0, 0x0FFF, 0x0001, 0, 0xE001, 0x0100));
-
-        cpu.Step();
-        AssertCpu(2, new(0b0000_0000, 0x0FFF, 0x0001, 0x0FFF, 0xE001, 0x0101), cpu);
-        cpu.Step();
-        AssertCpu(4, new(0b0010_0000, 0x0FFF, 0x0001, 0x1000, 0xE001, 0x0102), cpu);
-        cpu.Step();
-        AssertCpu(6, new(0b0000_0000, 0x0FFF, 0x0001, 0x2000, 0xE001, 0x0103), cpu);
-        cpu.Step();
-        AssertCpu(8, new(0b0001_0000, 0x0FFF, 0x0001, 0x0001, 0xE001, 0x0104), cpu);
-    }
-
     // Bitwise logic
     [Fact]
     public void ComplementA()

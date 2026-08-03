@@ -67,6 +67,7 @@ fn r8(pattern: BitPattern<3>) -> Register8 {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Register16 {
     BC,
     DE,

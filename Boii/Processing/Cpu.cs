@@ -9,37 +9,6 @@ namespace Boii.Processing;
 
 public class Cpu
 {   
-    // 16 Bit arithmetic
-    private ulong IncrementRegister16(Instruction.IncrementRegister16 inst)
-    {
-        var value = GetRegister16(inst.Operand);
-        value++;
-        SetRegister16(inst.Operand, value);
-        return 2;
-    }
-
-    private ulong DecrementRegister16(Instruction.DecrementRegister16 inst)
-    {
-        var value = GetRegister16(inst.Operand);
-        value--;
-        SetRegister16(inst.Operand, value);
-        return 2;
-    }
-
-    private ulong AddRegister16ToHL(Instruction.AddRegister16ToHL inst)
-    {
-        var oldValue = _registers.HL;
-        var operand = GetRegister16(inst.Operand);
-        var newValue = oldValue + operand;
-
-        _registers.HL = (ushort)newValue;
-        _registers.Subtraction = false;
-        _registers.HalfCarry = IsOverflowBit11(oldValue, operand);
-        _registers.Carry = IsOverflowBit15(oldValue, operand);
-
-        return 2;
-    }
-
     // Bitwise logic
     private ulong ComplementA(Instruction.ComplementA _)
     {

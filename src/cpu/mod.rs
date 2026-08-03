@@ -357,9 +357,9 @@ where
             Instruction::SubtractLiteral8FromACarry => self.subtract_literal8_from_a_carry(),
             Instruction::CompareToA(op) => self.compare_to_a(op),
             Instruction::CompareLiteral8ToA => self.compare_literal8_to_a(),
-            Instruction::IncrementRegister16(register16) => todo!(),
-            Instruction::DecrementRegister16(register16) => todo!(),
-            Instruction::AddRegister16ToHL(register16) => todo!(),
+            Instruction::IncrementRegister16(op) => Ok(self.increment_register16(op)),
+            Instruction::DecrementRegister16(op) => Ok(self.decrement_register16(op)),
+            Instruction::AddRegister16ToHL(op) => Ok(self.add_register16_to_hl(op)),
             Instruction::ComplementA => todo!(),
             Instruction::AndWithA(op) => todo!(),
             Instruction::AndLiteral8WithA => todo!(),
@@ -685,6 +685,33 @@ where
         self.reg
             .set_half_carry_flag(Self::is_borroww_bit4(a as i32, op as i32));
         self.reg.set_carry_flag(op > a);
+    }
+
+    // 16 Bit arithmetic
+    fn increment_register16(&mut self, op: Register16) -> usize {
+        let mut value = self.get_register16(op);
+        value = value.wrapping_add(1);
+        self.set_register16(op, value);
+        2
+    }
+
+    fn decrement_register16(&mut self, op: Register16) -> usize {
+        let mut value = self.get_register16(op);
+        value = value.wrapping_sub(1);
+        self.set_register16(op, value);
+        2
+    }
+
+    fn add_register16_to_hl(&mut self, op: Register16) -> usize {
+        let old_value = self.reg.hl;
+        let operand = self.get_register16(op);
+        let new_value = old_value.wrapping_add(operand);
+
+        self.reg.hl = new_value;
+        self.reg.set_sub_flag(false);
+        self.reg.set_half_carry_flag(Self::is_overflow_bit11(old_value as i32, operand as i32));
+        self.reg.set_carry_flag(Self::is_overflow_bit15(old_value as i32, operand as i32));
+        2
     }
 
     fn do_call(&mut self, address: u16) -> Result<()> {
