@@ -5,7 +5,7 @@ pub type Bit = bool;
 
 pub type BitPattern<const N: usize> = [Bit; N];
 
-pub trait Bits<const N: usize>: Clone {
+pub trait Bits<const N: usize>: Copy {
     fn bits_lsb_first(self) -> BitPattern<N>;
     fn bits_msb_first(self) -> BitPattern<N>;
     fn bit(self, idx: i32) -> Bit;
