@@ -7,7 +7,7 @@ const BACKGROUND_COLOR: Color = Color::BLACK;
 const BUF_WIDTH: i32 = 160;
 const BUF_HEIGHT: i32 = 144;
 
-type PixelBuffer<T> = [T; (BUF_WIDTH * BUF_HEIGHT) as usize];
+type Buffer<T> = [T; (BUF_WIDTH * BUF_HEIGHT) as usize];
 
 fn idx(x: i32, y: i32) -> usize {
     y.wrapping_mul(BUF_WIDTH).wrapping_add(x) as usize
@@ -27,7 +27,7 @@ impl io::Color {
 pub struct Window {
     handle: RaylibHandle,
     thread: RaylibThread,
-    buf: PixelBuffer<io::Color>,
+    buf: Buffer<io::Color>,
 }
 
 impl Window {

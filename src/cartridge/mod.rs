@@ -6,10 +6,10 @@ use crate::{
         header::{Header, MBCType},
         mbc::{MBC1, MemoryBankController, NoMBC},
     },
-    memory::{self, Read, Write},
+    memory::{self, Read},
 };
-
 pub use header::ParseConfig;
+use std::{fs::File, io::Write};
 
 #[derive(Debug, PartialEq)]
 pub enum LoadError {
@@ -82,16 +82,18 @@ impl From<LoadError> for Error {
 
 pub struct Cartridge {
     header: Header,
-    rom: Box<[u8]>,
+    rom: Vec<u8>,
     ram: Vec<u8>,
     mbc: Box<dyn MemoryBankController>,
+    ram_file: Option<String>,
 }
 
 impl Cartridge {
     pub fn from(
-        rom: Box<[u8]>,
-        ram: Option<Box<[u8]>>,
+        rom: Vec<u8>,
+        ram: Option<Vec<u8>>,
         config: &ParseConfig,
+        ram_file: Option<String>,
     ) -> Result<Self, Error> {
         let header = Header::parse(&rom, config)?;
 
@@ -114,7 +116,6 @@ impl Cartridge {
                     None
                 }
             })
-            .map(|x| x.into_vec())
             .unwrap_or_else(|| vec![0; header.ram_size]);
 
         if rom.len() != header.rom_size {
@@ -153,6 +154,7 @@ impl Cartridge {
             rom,
             ram,
             mbc,
+            ram_file,
         })
     }
 
@@ -175,12 +177,22 @@ impl Cartridge {
     pub fn ram_mut(&mut self) -> RamMut<'_> {
         RamMut(self.mbc.as_mut(), &mut self.ram)
     }
+}
 
-    pub fn backing_ram(&self) -> Option<&[u8]> {
-        if self.header.cartridge_type.battery {
-            Some(&self.ram)
-        } else {
-            None
+impl Drop for Cartridge {
+    fn drop(&mut self) {
+        // Only safe battery packed ram when the cartridge actually has a battery
+        if self.header.cartridge_type.battery
+            && let Some(path) = self.ram_file.as_ref()
+        {
+            // Open a new file or overwrite an existing one
+            let result = File::create(path)
+                .map(|mut f| f.write_all(&self.ram))
+                .flatten();
+
+            if let Err(e) = result {
+                eprintln!("Could not save the ram. {}", e);
+            }
         }
     }
 }
@@ -195,7 +207,7 @@ impl<'a> Read for Rom<'a> {
 
 pub struct RomMut<'a>(&'a mut dyn MemoryBankController, &'a mut [u8]);
 
-impl<'a> Write for RomMut<'a> {
+impl<'a> memory::Write for RomMut<'a> {
     fn write(&mut self, address: u16, value: u8) -> Result<(), memory::Error> {
         self.0.write_rom(self.1, address, value)
     }
@@ -211,7 +223,7 @@ impl<'a> Read for Ram<'a> {
 
 pub struct RamMut<'a>(&'a mut dyn MemoryBankController, &'a mut [u8]);
 
-impl<'a> Write for RamMut<'a> {
+impl<'a> memory::Write for RamMut<'a> {
     fn write(&mut self, address: u16, value: u8) -> Result<(), memory::Error> {
         self.0.write_ram(self.1, address, value)
     }

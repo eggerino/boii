@@ -1,56 +1,61 @@
-use std::error::Error;
-
 use boii::{
-    bus::Bus, cartridge::{Cartridge, ParseConfig}, cpu::Cpu, io::{Color, Draw, Gamepad}, window::Window,
+    bus::Bus,
+    cartridge::{Cartridge, ParseConfig},
+    cpu::Cpu,
+    io::Draw,
+    window::Window,
 };
+use clap::Parser;
+use std::{error::Error, fs};
+
+/// Gameboy emulator
+#[derive(Parser)]
+#[command(version, about)]
+struct Args {
+    /// Rom file to run the emulation with
+    rom_file: String,
+
+    /// File to use for persisting battery packed cartridge ram
+    #[arg(short, long)]
+    ram_file: Option<String>,
+
+    /// Check the header for a valid nintendo logo before starting
+    #[arg(long)]
+    check_nintendo_logo: bool,
+
+    /// Check the header checksum in the rom for validity before starting
+    #[arg(long)]
+    check_header_checksum: bool,
+
+    /// Check the global checksum in the rom for validity before starting
+    #[arg(long)]
+    check_global_checksum: bool,
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut window = Window::new("Gameboyyyy");
-    while !window.should_close() {
+    let args = Args::parse();
 
-        for x in 0..100 {
-            for y in 0..100 {
-                let t = (x + y) % 4;
-                let c = if t == 0 {
-                    Color::White
-                } else if t == 1 {
-                    Color::LightGray
-                } else if t == 2 {
-                    Color::DarkGray
-                } else {
-                    Color::Black
-                };
-                window.set_pixel(x, y, c);
-            }
-        }
-        window.update();
+    let rom = fs::read(args.rom_file)?;
+    let ram = invert(args.ram_file.as_ref().map(fs::read))?;
+    let parse_config = ParseConfig {
+        check_nintento_logo: args.check_nintendo_logo,
+        check_header_checksum: args.check_header_checksum,
+        check_global_checksum: args.check_global_checksum,
+    };
 
-        println!("up {}", window.up());
-        println!("down {}", window.down());
-        println!("left {}", window.left());
-        println!("right {}", window.right());
-        println!("a {}", window.a());
-        println!("b {}", window.b());
-        println!("start {}", window.start());
-        println!("select {}\n\n", window.select());
-    }
-    return Ok(());
-
-
-
-    // TODO read the input of the emulation rom, battery safed ram ...
-    let rom = [0; 10];
-    let ram = None;
-    let parse_config = ParseConfig::default();
-
-    // Initialize the components of the gameboy
-    let cart = Cartridge::from(rom.into(), ram, &parse_config)?;
-    let window = Window::new(cart.title());
+    let cart = Cartridge::from(rom.into(), ram, &parse_config, args.ram_file)?;
+    let mut window = Window::new(cart.title());
     let bus = Bus::new(cart);
     let mut cpu = Cpu::new(bus);
 
-    // TODO run the emulation
-    cpu.step()?;
+    while !window.should_close() {
+        cpu.step()?;
+        window.update();
+    }
 
     Ok(())
+}
+
+fn invert<T, E>(x: Option<Result<T, E>>) -> Result<Option<T>, E> {
+    x.map_or(Ok(None), |r| r.map(Some))
 }
