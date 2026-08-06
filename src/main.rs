@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let cart = Cartridge::from(rom.into(), ram, &parse_config, args.ram_file)?;
-    let mut window = Window::new(cart.title());
+    let mut window = Window::new(&format!("boii - {}", cart.title()));
     let bus = Bus::new(cart);
     let mut cpu = Cpu::new(bus);
 
