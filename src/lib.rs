@@ -7,3 +7,4 @@ pub mod memory;
 pub mod nums;
 pub mod vram;
 pub mod window;
+pub mod wram;

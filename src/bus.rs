@@ -2,12 +2,14 @@ use crate::{
     cartridge::Cartridge,
     memory::{Error, Read, Write},
     vram::Vram,
+    wram::Wram,
 };
 
 pub struct Bus {
     interrupt_enable_reg: u8,
     high_ram: [u8; 0x007F],
     vram: Vram,
+    wram: Wram,
     cartridge: Cartridge,
 }
 
@@ -17,6 +19,7 @@ impl Bus {
             interrupt_enable_reg: 0,
             high_ram: [0; 0x007F],
             vram: Vram::new(cartridge.cgb()),
+            wram: Wram::new(cartridge.cgb()),
             cartridge,
         }
     }
@@ -28,10 +31,10 @@ impl Read for Bus {
             0x0000..0x8000 => self.cartridge.rom().read(address),
             0x8000..0xA000 => self.vram.read(address.saturating_sub(0x8000)),
             0xA000..0xC000 => self.cartridge.ram().read(address.saturating_sub(0xA000)),
-            0xC000..0xE000 => todo!("Wram"),
-            0xE000..0xFE00 => todo!("Echo ram"),
+            0xC000..0xE000 => self.wram.read(address.saturating_sub(0xC000)),
+            0xE000..0xFE00 => self.wram.read(address.saturating_sub(0xE000)), // Echo ram
             0xFE00..0xFEA0 => todo!("Object attribute memory"),
-            0xFEA0..0xFF00 => Err(Error::SegFault { address }), // Prohibited usage -> segfault
+            0xFEA0..0xFF00 => Ok(0), // Prohibited usage -> always return 0, do not crash/seqgault on access
             0xFF00..0xFF80 => todo!("IO registers"),
             0xFF80..0xFFFF => self.high_ram.read(address.saturating_sub(0xFF80)),
             0xFFFF => Ok(self.interrupt_enable_reg),
@@ -51,10 +54,10 @@ impl Write for Bus {
                 .cartridge
                 .ram_mut()
                 .write(address.saturating_sub(0xA000), value),
-            0xC000..0xE000 => todo!("Wram"),
-            0xE000..0xFE00 => Err(Error::SegFault { address }), // prohibited usage of echo ram -> segfault
+            0xC000..0xE000 => self.wram.write(address.saturating_sub(0xC000), value),
+            0xE000..0xFE00 => self.wram.write(address.saturating_sub(0xE000), value), // echo ram
             0xFE00..0xFEA0 => todo!("Object attribute memory"),
-            0xFEA0..0xFF00 => Err(Error::SegFault { address }), // Prohibited usage -> segfault
+            0xFEA0..0xFF00 => Ok(()), // Prohibited usage -> ignore the write, do not crash/segfault on access
             0xFF00..0xFF80 => todo!("IO registers"),
             0xFF80..0xFFFF => self.high_ram.write(address.saturating_sub(0xFF80), value),
             0xFFFF => {

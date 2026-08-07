@@ -11,13 +11,13 @@ pub struct Vram {
 
 impl Read for Vram {
     fn read(&self, address: u16) -> Result<u8, Error> {
-        self.buf.read(address.wrapping_sub(self.offset))
+        self.buf.read(address.wrapping_add(self.offset))
     }
 }
 
 impl Write for Vram {
     fn write(&mut self, address: u16, value: u8) -> Result<(), Error> {
-        self.buf.write(address.wrapping_sub(self.offset), value)
+        self.buf.write(address.wrapping_add(self.offset), value)
     }
 }
 
