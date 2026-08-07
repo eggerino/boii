@@ -8,11 +8,12 @@ use crate::{
         imd::InterruptMasterDispatcher,
         instr::{
             Condition, Instruction, PrefixedInstruction, Register8, Register16, Register16Memory,
-            Register16Stack, U3,
+            Register16Stack,
         },
         registers::Registers,
     },
     memory::{self, Read, Write},
+    nums::U3,
 };
 
 const INTERRUPT_FLAG_ADDR: u16 = 0xFF0F;

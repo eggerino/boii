@@ -1,6 +1,7 @@
 use crate::{
     bits::Bits,
     memory::{Error, Read, Write},
+    nums::U3,
 };
 
 pub struct Vram {
@@ -38,22 +39,22 @@ impl Vram {
         self.offset = 0x2000;
     }
 
-    pub fn lower_tile_bank0(&self, idx: u8) -> Option<Tile<'_>> {
+    pub fn tile_bank0_lower(&self, idx: u8) -> Option<Tile<'_>> {
         let addr = 16_usize.wrapping_mul(idx as usize);
         self.tile(addr)
     }
 
-    pub fn higher_tile_bank0(&self, idx: u8) -> Option<Tile<'_>> {
+    pub fn tile_bank0_higher(&self, idx: u8) -> Option<Tile<'_>> {
         let addr = 16_i32.wrapping_mul((idx as i8) as i32).wrapping_add(0x1000) as usize;
         self.tile(addr)
     }
 
-    pub fn lower_tile_bank1(&self, idx: u8) -> Option<Tile<'_>> {
+    pub fn tile_bank1_lower(&self, idx: u8) -> Option<Tile<'_>> {
         let addr = 16_usize.wrapping_mul(idx as usize).wrapping_add(0x2000);
         self.tile(addr)
     }
 
-    pub fn higher_tile_bank1(&self, idx: u8) -> Option<Tile<'_>> {
+    pub fn tile_bank1_higher(&self, idx: u8) -> Option<Tile<'_>> {
         let addr = 16_i32.wrapping_mul((idx as i8) as i32).wrapping_add(0x3000) as usize;
         self.tile(addr)
     }
@@ -62,16 +63,20 @@ impl Vram {
         self.buf.get(addr..addr.saturating_add(16)).map(Tile)
     }
 
-    pub fn lower_tile_map(&self) -> Option<TileMap<'_>> {
+    pub fn tile_map_lower(&self) -> Option<TileMap<'_>> {
         self.tile_map(0x1800)
     }
 
-    pub fn higher_tile_map(&self) -> Option<TileMap<'_>> {
+    pub fn tile_map_higher(&self) -> Option<TileMap<'_>> {
         self.tile_map(0x1C00)
     }
 
     fn tile_map(&self, addr: usize) -> Option<TileMap<'_>> {
         self.buf.get(addr..addr.saturating_add(0x0400)).map(TileMap)
+    }
+
+    pub fn tile_attributes_map(&self) -> Option<TileAttributesMap<'_>> {
+        self.buf.get(0x3800..0x3C00).map(TileAttributesMap)
     }
 }
 
@@ -108,16 +113,49 @@ impl ColorIndex {
     }
 }
 
+fn tile_map_indexer(row: u8, col: u8) -> usize {
+    32_u8.wrapping_mul(row).wrapping_add(col) as usize
+}
+
 pub struct TileMap<'a>(&'a [u8]);
 
 impl<'a> TileMap<'a> {
     pub fn tile_idx(&self, row: u8, col: u8) -> Option<u8> {
-        if row < 32 && col < 32 {
-            let i = 32_u8.wrapping_mul(row).wrapping_add(col) as usize;
-            self.0.get(i).copied()
-        } else {
-            None
-        }
+        let index = tile_map_indexer(row, col);
+        self.0.get(index).copied()
+    }
+}
+
+pub struct TileAttributesMap<'a>(&'a [u8]);
+
+impl<'a> TileAttributesMap<'a> {
+    pub fn tile_attributes(&self, row: u8, col: u8) -> Option<TileAttributes> {
+        let index = tile_map_indexer(row, col);
+        self.0.get(index).copied().map(TileAttributes)
+    }
+}
+
+pub struct TileAttributes(u8);
+
+impl TileAttributes {
+    pub fn priority(&self) -> bool {
+        self.0.bit(7)
+    }
+
+    pub fn flip_y(&self) -> bool {
+        self.0.bit(6)
+    }
+
+    pub fn flip_x(&self) -> bool {
+        self.0.bit(5)
+    }
+
+    pub fn bank(&self) -> bool {
+        self.0.bit(3)
+    }
+
+    pub fn color_palette(&self) -> U3 {
+        self.0.into()
     }
 }
 
@@ -140,16 +178,16 @@ mod tests {
         vram.write(0x2000 + 0x8800 - 0x8000 + 64 + 10 + 0, 0b0100_0000)
             .unwrap();
 
-        let ci = vram.lower_tile_bank0(1).and_then(|x| x.pixel(2, 3));
+        let ci = vram.tile_bank0_lower(1).and_then(|x| x.pixel(2, 3));
         assert_eq!(ci, Some(ColorIndex::One));
 
-        let ci = vram.higher_tile_bank0(2).and_then(|x| x.pixel(3, 4));
+        let ci = vram.tile_bank0_higher(2).and_then(|x| x.pixel(3, 4));
         assert_eq!(ci, Some(ColorIndex::Two));
 
-        let ci = vram.lower_tile_bank1(131).and_then(|x| x.pixel(4, 5));
+        let ci = vram.tile_bank1_lower(131).and_then(|x| x.pixel(4, 5));
         assert_eq!(ci, Some(ColorIndex::Three));
 
-        let ci = vram.higher_tile_bank1(132).and_then(|x| x.pixel(5, 6));
+        let ci = vram.tile_bank1_higher(132).and_then(|x| x.pixel(5, 6));
         assert_eq!(ci, Some(ColorIndex::One));
     }
 
@@ -159,10 +197,86 @@ mod tests {
         vram.write(0x9800 - 0x8000 + 35, 5).unwrap();
         vram.write(0x9C00 - 0x8000 + 37, 6).unwrap();
 
-        let idx = vram.lower_tile_map().and_then(|x| x.tile_idx(1, 3));
+        let idx = vram.tile_map_lower().and_then(|x| x.tile_idx(1, 3));
         assert_eq!(idx, Some(5));
 
-        let idx = vram.higher_tile_map().and_then(|x| x.tile_idx(1, 5));
+        let idx = vram.tile_map_higher().and_then(|x| x.tile_idx(1, 5));
         assert_eq!(idx, Some(6));
+    }
+
+    #[test]
+    fn tile_attributes_map() {
+        let mut vram = Vram::new(true);
+        vram.write(0x3800 + 38, 69).unwrap();
+
+        let attrs = vram
+            .tile_attributes_map()
+            .and_then(|x| x.tile_attributes(1, 6))
+            .unwrap()
+            .0;
+        assert_eq!(attrs, 69);
+
+        let attrs = TileAttributes(0);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::Zero);
+
+        let attrs = TileAttributes(1);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::One);
+
+        let attrs = TileAttributes(2);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::Two);
+
+        let attrs = TileAttributes(4);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::Four);
+
+        let attrs = TileAttributes(8);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), true);
+        assert_eq!(attrs.color_palette(), U3::Zero);
+
+        let attrs = TileAttributes(16);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::Zero);
+
+        let attrs = TileAttributes(32);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), true);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::Zero);
+
+        let attrs = TileAttributes(64);
+        assert_eq!(attrs.priority(), false);
+        assert_eq!(attrs.flip_y(), true);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::Zero);
+
+        let attrs = TileAttributes(128);
+        assert_eq!(attrs.priority(), true);
+        assert_eq!(attrs.flip_y(), false);
+        assert_eq!(attrs.flip_x(), false);
+        assert_eq!(attrs.bank(), false);
+        assert_eq!(attrs.color_palette(), U3::Zero);
     }
 }

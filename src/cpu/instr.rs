@@ -1,45 +1,13 @@
-use crate::bits::{BitPattern, Bits};
+use crate::{
+    bits::{BitPattern, Bits},
+    nums::U3,
+};
 
 const O: bool = false;
 const I: bool = true;
 
-pub enum U3 {
-    Zero,
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-}
-
 fn u3(pattern: BitPattern<3>) -> U3 {
-    match pattern {
-        [O, O, O] => U3::Zero,
-        [O, O, I] => U3::One,
-        [O, I, O] => U3::Two,
-        [O, I, I] => U3::Three,
-        [I, O, O] => U3::Four,
-        [I, O, I] => U3::Five,
-        [I, I, O] => U3::Six,
-        [I, I, I] => U3::Seven,
-    }
-}
-
-impl From<U3> for u8 {
-    fn from(val: U3) -> Self {
-        match val {
-            U3::Zero => 0,
-            U3::One => 1,
-            U3::Two => 2,
-            U3::Three => 3,
-            U3::Four => 4,
-            U3::Five => 5,
-            U3::Six => 6,
-            U3::Seven => 7,
-        }
-    }
+    U3::from_msb_first(pattern)
 }
 
 #[derive(Clone, Copy)]
