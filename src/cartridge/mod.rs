@@ -3,7 +3,7 @@ mod mbc;
 
 use crate::{
     cartridge::{
-        header::{Header, MBCType},
+        header::{CgbFlag, Header, MBCType},
         mbc::{MBC1, MemoryBankController, NoMBC},
     },
     memory::{self, Read},
@@ -162,6 +162,10 @@ impl Cartridge {
         &self.header.title
     }
 
+    pub fn cgb(&self) -> bool {
+        self.header.cgb_flag == CgbFlag::Color
+    }
+
     pub fn rom(&self) -> Rom<'_> {
         Rom(self.mbc.as_ref(), &self.rom)
     }
@@ -186,9 +190,7 @@ impl Drop for Cartridge {
             && let Some(path) = self.ram_file.as_ref()
         {
             // Open a new file or overwrite an existing one
-            let result = File::create(path)
-                .map(|mut f| f.write_all(&self.ram))
-                .flatten();
+            let result = File::create(path).and_then(|mut f| f.write_all(&self.ram));
 
             if let Err(e) = result {
                 eprintln!("Could not save the ram. {}", e);
