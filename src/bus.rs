@@ -1,6 +1,7 @@
 use crate::{
     cartridge::Cartridge,
     memory::{Error, Read, Write},
+    oam::Oam,
     vram::Vram,
     wram::Wram,
 };
@@ -10,6 +11,7 @@ pub struct Bus {
     high_ram: [u8; 0x007F],
     vram: Vram,
     wram: Wram,
+    oam: Oam,
     cartridge: Cartridge,
 }
 
@@ -20,6 +22,7 @@ impl Bus {
             high_ram: [0; 0x007F],
             vram: Vram::new(cartridge.cgb()),
             wram: Wram::new(cartridge.cgb()),
+            oam: Oam::new(),
             cartridge,
         }
     }
@@ -33,7 +36,7 @@ impl Read for Bus {
             0xA000..0xC000 => self.cartridge.ram().read(address.saturating_sub(0xA000)),
             0xC000..0xE000 => self.wram.read(address.saturating_sub(0xC000)),
             0xE000..0xFE00 => self.wram.read(address.saturating_sub(0xE000)), // Echo ram
-            0xFE00..0xFEA0 => todo!("Object attribute memory"),
+            0xFE00..0xFEA0 => self.oam.read(address.saturating_sub(0xFE00)),
             0xFEA0..0xFF00 => Ok(0), // Prohibited usage -> always return 0, do not crash/seqgault on access
             0xFF00..0xFF80 => todo!("IO registers"),
             0xFF80..0xFFFF => self.high_ram.read(address.saturating_sub(0xFF80)),
@@ -56,7 +59,7 @@ impl Write for Bus {
                 .write(address.saturating_sub(0xA000), value),
             0xC000..0xE000 => self.wram.write(address.saturating_sub(0xC000), value),
             0xE000..0xFE00 => self.wram.write(address.saturating_sub(0xE000), value), // echo ram
-            0xFE00..0xFEA0 => todo!("Object attribute memory"),
+            0xFE00..0xFEA0 => self.oam.write(address.saturating_sub(0xFE00), value),
             0xFEA0..0xFF00 => Ok(()), // Prohibited usage -> ignore the write, do not crash/segfault on access
             0xFF00..0xFF80 => todo!("IO registers"),
             0xFF80..0xFFFF => self.high_ram.write(address.saturating_sub(0xFF80), value),
