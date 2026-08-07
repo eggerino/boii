@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         check_global_checksum: args.check_global_checksum,
     };
 
-    let cart = Cartridge::from(rom.into(), ram, &parse_config, args.ram_file)?;
+    let cart = Cartridge::from(rom, ram, &parse_config, args.ram_file)?;
     let mut window = Window::new(&format!("boii - {}", cart.title()));
     let bus = Bus::new(cart);
     let mut cpu = Cpu::new(bus);
